@@ -73,6 +73,7 @@ ptpd_SOURCES =				\
 	dep/outlierfilter.c		\
 	dep/alarms.h			\
 	dep/alarms.c			\
+	libcck/clockdriver.def		\
 	libcck/clockdriver.h		\
 	libcck/clockdriver.c		\
 	libcck/clockdriver_interface.h	\
