@@ -76,12 +76,13 @@ ptpd_SOURCES =				\
 	libcck/libcck.h			\
 	libcck/cck_types.h		\
 	libcck/cck_utils.h		\
+	libcck/log_handler.h		\
 	libcck/cck_utils.c		\
 	libcck/fd_set.h			\
 	libcck/fd_set.c			\
 	libcck/transport_address.h	\
 	libcck/transport_address.c	\
-	libcck/transport.h		\
+	libcck/ttransport.h		\
 	libcck/clockdriver.def		\
 	libcck/clockdriver.h		\
 	libcck/clockdriver.c		\
