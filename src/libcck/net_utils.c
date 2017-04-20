@@ -155,7 +155,7 @@ end:
     dlpi_close(dh);
     return ret;
 
-#elif defined(SIOCGHWIFADDR)
+#elif defined(SIOCGIFHWADDR)
 /* Linux and Solaris family which also have SIOCGIFHWADDR/SIOCGLIFHWADDR */
     int sockfd;
     struct ifreq ifr;
