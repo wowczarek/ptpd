@@ -74,6 +74,7 @@ ptpd_SOURCES =				\
 	dep/alarms.h			\
 	dep/alarms.c			\
 	libcck/clockdriver.h		\
+	libcck/clockdriver.def		\
 	libcck/clockdriver.c		\
 	libcck/clockdriver_interface.h	\
 	libcck/clockdriver_unix.h		\
