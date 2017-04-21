@@ -171,7 +171,7 @@ end:
 
     strncpy(ifr.ifr_name, ifName, IF_NAMESIZE);
 
-    if (ioctl(sockfd, SIOCGHWIFADDR, &ifr) < 0) {
+    if (ioctl(sockfd, SIOCGIFHWADDR, &ifr) < 0) {
             CCK_DBGV("failed to request hardware address for %s", ifName);
 	    ret = -1;
 	    goto end;
