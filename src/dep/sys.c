@@ -52,6 +52,7 @@
  */
 
 #include "../ptpd.h"
+#include "parson/parson.h"
 
 #ifdef HAVE_SYS_TIMEX_H
 #include <sys/timex.h>
@@ -616,6 +617,9 @@ restartLogging(GlobalConfig* global)
 	if(!restartLog(&global->statusLog, TRUE))
 		NOTIFY("Failed logging to %s file\n", global->statusLog.logID);
 
+	if(!restartLog(&global->jsonLog, TRUE))
+		NOTIFY("Failed logging to %s file\n", global->jsonLog.logID);
+
 }
 
 void
@@ -625,6 +629,7 @@ stopLogging(GlobalConfig* global)
 	closeLog(&global->recordLog);
 	closeLog(&global->eventLog);
 	closeLog(&global->statusLog);
+	closeLog(&global->jsonLog);
 }
 
 void
@@ -1278,6 +1283,509 @@ writeStatusFile(PtpClock *ptpClock,const GlobalConfig *global, Boolean quiet)
 	fflush(out);
 }
 
+void
+writeJsonFile(PtpClock *ptpClock,const GlobalConfig *global)
+{
+	ClockDriver *cd = ptpClock->clockDriver;
+
+        //Example from https://github.com/kgabis/parson/README.md
+	JSON_Value *root_value = json_value_init_object();
+	JSON_Object *root_object = json_value_get_object(root_value);
+	
+	//json_object_set_string(root_object, "name", "John Smith");
+	//json_object_set_number(root_object, "age", 25);
+	//json_object_dotset_string(root_object, "address.city", "Cupertino");
+	//json_object_dotset_value(root_object, "contact.emails", json_parse_string("[\"email@example.com\",\"email2@example.com\"]"));
+
+	char tmpBuf[200];
+
+	if(global->jsonLog.logFP == NULL)
+	    return;
+
+	char outBuf[8192];
+	FILE* out = global->jsonLog.logFP;
+	memset(outBuf, 0, sizeof(outBuf));
+	setbuf(out, outBuf);
+	if(ftruncate(fileno(out), 0) < 0) {
+		DBG("writeStatusFile: ftruncate() failed\n");
+	}
+	rewind(out);
+
+	int n = getAlarmSummary(NULL, 0, ptpClock->alarms, ALRM_MAX);
+	char alarmBuf[n];
+	getAlarmSummary(alarmBuf, n, ptpClock->alarms, ALRM_MAX);
+
+	char timeStr[MAXTIMESTR];
+	char hostName[MAXHOSTNAMELEN];
+	struct timeval now;
+	memset(hostName, 0, MAXHOSTNAMELEN);
+
+	TTransport *transport = ptpClock->eventTransport;
+
+	gethostname(hostName, MAXHOSTNAMELEN);
+	gettimeofday(&now, 0);
+	strftime(timeStr, MAXTIMESTR, "%a %b %d %X %Z %Y", localtime((time_t*)&now.tv_sec));
+
+        //fprintf(out,          STATUSPREFIX"  %s, PID %d\n","Host info", hostName, (int)getpid());
+        json_object_set_string(root_object, "hostname", hostName);
+        json_object_set_number(root_object, "pid", (int)getpid());
+        //fprintf(out,          STATUSPREFIX"  %s\n","Local time", timeStr);
+        json_object_set_string(root_object, "local_time", timeStr);
+        strftime(timeStr, MAXTIMESTR, "%a %b %d %X %Z %Y", gmtime((time_t*)&now.tv_sec));
+        //fprintf(out,          STATUSPREFIX"  %s\n","Kernel time", timeStr);
+        json_object_set_string(root_object, "kernel_time", timeStr);
+
+        if(transport) {
+                tmpstr(trStatus, 100);
+                //fprintf(out,          STATUSPREFIX"  %s\n","Interface", transport->getStatusLine(transport, trStatus, trStatus_len));
+                json_object_set_string(root_object, "transport_status", transport->getStatusLine(transport, trStatus, trStatus_len));
+                //fprintf(out,          STATUSPREFIX"  %s","Transport", transport->getInfoLine(transport, trStatus, trStatus_len));
+                json_object_set_string(root_object, "transport_info", transport->getInfoLine(transport, trStatus, trStatus_len));
+        } else {
+                json_object_set_string(root_object, "transport_status", "");
+                json_object_set_string(root_object, "transport_info", "");
+        }
+
+        //fprintf(out,"%s", global->unicastNegotiation ? " negotiation":"");
+        //fprintf(out,"\n");
+        json_object_set_boolean(root_object, "unicast_negotiation", global->unicastNegotiation);
+
+        //fprintf(out,          STATUSPREFIX"  %s\n","PTP preset", dictionary_get(global->currentConfig, "ptpengine:preset", ""));
+        json_object_set_string(root_object, "ptp_preset", dictionary_get(global->currentConfig, "ptpengine:preset", ""));
+
+        //fprintf(out,          STATUSPREFIX"  %s\n","Delay mechanism", dictionary_get(global->currentConfig, "ptpengine:delay_mechanism", ""));
+        json_object_set_string(root_object, "delay_mechanism", dictionary_get(global->currentConfig, "ptpengine:delay_mechanism", ""));
+
+	if(ptpClock->portDS.portState >= PTP_MASTER) {
+		//fprintf(out, 		STATUSPREFIX"  %s\n","Sync mode", ptpClock->defaultDS.twoStepFlag ? "TWO_STEP" : "ONE_STEP");
+		json_object_set_string(root_object, "snyc_mode", ptpClock->defaultDS.twoStepFlag ? "TWO_STEP" : "ONE_STEP");
+	}
+	if(ptpClock->defaultDS.slaveOnly && global->anyDomain) {
+		//fprintf(out, 		STATUSPREFIX"  %d, preferred %d\n","PTP domain", ptpClock->defaultDS.domainNumber, global->domainNumber);
+	} else if(ptpClock->defaultDS.slaveOnly && global->unicastNegotiation) {
+		//fprintf(out, 		STATUSPREFIX"  %d, default %d\n","PTP domain", ptpClock->defaultDS.domainNumber, global->domainNumber);
+	} else {
+		//fprintf(out, 		STATUSPREFIX"  %d\n","PTP domain", ptpClock->defaultDS.domainNumber);
+	}
+	json_object_set_number(root_object, "preferred_domain", global->domainNumber);
+	json_object_set_number(root_object, "domain", ptpClock->defaultDS.domainNumber);
+
+	//fprintf(out, 		STATUSPREFIX"  %s\n","Port state", portState_getName(ptpClock->portDS.portState));
+	json_object_set_string(root_object, "port_state", portState_getName(ptpClock->portDS.portState));
+
+	json_object_set_null(root_object, "alarms");
+	if(strlen(alarmBuf) > 0) {
+		fprintf(out, 		STATUSPREFIX"  %s\n","Alarms", alarmBuf);
+		json_object_set_string(root_object, "alarms", alarmBuf);
+	}
+
+	memset(tmpBuf, 0, sizeof(tmpBuf));
+	snprint_PortIdentity(tmpBuf, sizeof(tmpBuf), &ptpClock->portDS.portIdentity);
+	//fprintf(out, 		STATUSPREFIX"  %s\n","Local port ID", tmpBuf);
+	json_object_set_string(root_object, "local_port_id", tmpBuf);
+
+	json_object_set_null(root_object, "best_master_id");
+	json_object_set_null(root_object, "priority1");
+	json_object_set_null(root_object, "priority2");
+
+	if(ptpClock->portDS.portState >= PTP_MASTER) {
+		memset(tmpBuf, 0, sizeof(tmpBuf));
+		snprint_PortIdentity(tmpBuf, sizeof(tmpBuf), &ptpClock->parentDS.parentPortIdentity);
+
+		//fprintf(out, 		STATUSPREFIX"  %s","Best master ID", tmpBuf);
+		json_object_set_string(root_object, "best_master_id", tmpBuf);
+		if(ptpClock->portDS.portState == PTP_MASTER || ptpClock->portDS.portState == PTP_PASSIVE) {
+			//fprintf(out," (self)\n");
+			//fprintf(out, 		STATUSPREFIX
+			//	"  Priority1 %d, Priority2 %d\n","Local priority",
+			//    	ptpClock->defaultDS.priority1,
+			//	ptpClock->defaultDS.priority2);
+			json_object_set_number(root_object, "priority1", ptpClock->defaultDS.priority1);
+			json_object_set_number(root_object, "priority2", ptpClock->defaultDS.priority2);
+	    	} else {
+			//fprintf(out,"\n");
+	    	}
+	}
+
+	json_object_set_null(root_object, "best_master_addr");
+	if(ptpClock->portDS.portState > PTP_MASTER &&
+	ptpClock->bestMaster && !ptpAddrIsEmpty(ptpClock->bestMaster->protocolAddress)) {
+		tmpstr(tmpAddr, ptpAddrStrLen(ptpClock->bestMaster->protocolAddress));
+		//fprintf(out, 		STATUSPREFIX"  %s\n","Best master addr",
+		//ptpAddrToString(tmpAddr, tmpAddr_len, ptpClock->bestMaster->protocolAddress));
+		json_object_set_string(root_object, "best_master_addr", ptpAddrToString(tmpAddr, tmpAddr_len, ptpClock->bestMaster->protocolAddress));
+	}
+
+	json_object_set_null(root_object, "master_clock_class");
+	json_object_set_null(root_object, "local_pref");
+	if(ptpClock->portDS.portState == PTP_SLAVE) {
+		//fprintf(out, 		STATUSPREFIX"  Priority1 %d, Priority2 %d, clockClass %d","Master priority",
+		//ptpClock->parentDS.grandmasterPriority1, ptpClock->parentDS.grandmasterPriority2, ptpClock->parentDS.grandmasterClockQuality.clockClass);
+		json_object_set_number(root_object, "master_clock_class", ptpClock->parentDS.grandmasterClockQuality.clockClass);
+		if(global->unicastNegotiation && ptpClock->parentGrants != NULL ) {
+	    		//fprintf(out, ", localPref %d", ptpClock->parentGrants->localPreference);
+	    		json_object_set_number(root_object, "local_pref", ptpClock->parentGrants->localPreference);
+		}
+		//fprintf(out, "%s\n", (ptpClock->bestMaster != NULL && ptpClock->bestMaster->disqualified) ? " (timeout)" : "");
+	}
+	json_object_set_boolean(root_object, "best_master_timeout", (ptpClock->bestMaster != NULL && ptpClock->bestMaster->disqualified));
+
+	json_object_set_null(root_object, "master_timescale");
+	json_object_set_null(root_object, "master_time_traceable");
+	json_object_set_null(root_object, "master_freq_traceable");
+	json_object_set_null(root_object, "master_time_source_name");
+	json_object_set_null(root_object, "master_time_source");
+	json_object_set_null(root_object, "utc_offset_valid");
+	json_object_set_null(root_object, "utc_leap_61");
+	json_object_set_null(root_object, "utc_leap_59");
+	json_object_set_null(root_object, "master_prefer_utc");
+	json_object_set_null(root_object, "master_require_utc");
+	if(ptpClock->defaultDS.clockQuality.clockClass < 128 ||
+		ptpClock->portDS.portState == PTP_SLAVE ||
+		ptpClock->portDS.portState == PTP_PASSIVE){
+
+		//fprintf(out, 		STATUSPREFIX"  ","Time properties");
+		//fprintf(out, "%s timescale, ",ptpClock->timePropertiesDS.ptpTimescale ? "PTP":"ARB");
+		json_object_set_string(root_object, "master_timescale", ptpClock->timePropertiesDS.ptpTimescale ? "PTP":"ARB");
+		//fprintf(out, "tracbl: time %s, freq %s, src: %s(0x%02x)\n", ptpClock->timePropertiesDS.timeTraceable ? "Y" : "N",
+		//					ptpClock->timePropertiesDS.frequencyTraceable ? "Y" : "N",
+		//					getTimeSourceName(ptpClock->timePropertiesDS.timeSource),
+		//					ptpClock->timePropertiesDS.timeSource);
+		json_object_set_boolean(root_object, "master_time_traceable", ptpClock->timePropertiesDS.timeTraceable);
+		json_object_set_boolean(root_object, "master_freq_traceable", ptpClock->timePropertiesDS.frequencyTraceable);
+		json_object_set_string(root_object, "master_time_source_name", getTimeSourceName(ptpClock->timePropertiesDS.timeSource));
+		json_object_set_number(root_object, "master_time_source", ptpClock->timePropertiesDS.timeSource);
+
+		//fprintf(out, 		STATUSPREFIX"  ","UTC properties");
+		//fprintf(out, "UTC valid: %s", ptpClock->timePropertiesDS.currentUtcOffsetValid ? "Y" : "N");
+		//fprintf(out, ", UTC offset: %d",ptpClock->timePropertiesDS.currentUtcOffset);
+		//fprintf(out, "%s",ptpClock->timePropertiesDS.leap61 ?
+		//	", LEAP61 pending" : ptpClock->timePropertiesDS.leap59 ? ", LEAP59 pending" : "");
+		json_object_set_boolean(root_object, "utc_offset_valid", ptpClock->timePropertiesDS.currentUtcOffsetValid);
+		json_object_set_boolean(root_object, "utc_leap_61", ptpClock->timePropertiesDS.leap61);
+		json_object_set_boolean(root_object, "utc_leap_59", ptpClock->timePropertiesDS.leap59);
+		if (ptpClock->portDS.portState == PTP_SLAVE) {	
+	    		//fprintf(out, "%s", global->preferUtcValid ? ", prefer UTC" : "");
+	    		//fprintf(out, "%s", global->requireUtcValid ? ", require UTC" : "");
+			json_object_set_boolean(root_object, "master_prefer_utc", global->preferUtcValid);
+			json_object_set_boolean(root_object, "master_require_utc", global->requireUtcValid);
+		}
+		//fprintf(out,"\n");
+	}
+	json_object_set_number(root_object, "utc_offset", ptpClock->timePropertiesDS.currentUtcOffset);
+
+
+	json_object_set_null(root_object, "slave_offset_from_master");
+	json_object_set_null(root_object, "slave_offset_from_master_mean");
+	json_object_set_null(root_object, "slave_offset_from_master_stdev");
+	json_object_set_null(root_object, "slave_mean_path_delay");
+	json_object_set_null(root_object, "slave_mean_path_delay_mean");
+	json_object_set_null(root_object, "slave_mean_path_delay_stdev");
+	
+	json_object_set_boolean(root_object, "no_adjust", global->noAdjust);
+	json_object_set_null(root_object, "slave_clock_panic");
+	json_object_set_null(root_object, "slave_clock_negstep");
+	json_object_set_null(root_object, "slave_clock_calibrated");
+	json_object_set_null(root_object, "slave_clock_stabilised");
+
+	json_object_set_number(root_object, "best_master_priority1", ptpClock->parentDS.grandmasterPriority1);
+	json_object_set_number(root_object, "best_master_priority2", ptpClock->parentDS.grandmasterPriority2);
+
+	if(ptpClock->portDS.portState == PTP_SLAVE) {
+
+		memset(tmpBuf, 0, sizeof(tmpBuf));
+		snprint_TimeInternal(tmpBuf, sizeof(tmpBuf), &ptpClock->currentDS.offsetFromMaster);
+		//fprintf(out, 		STATUSPREFIX" %s s","Offset from Master", tmpBuf);
+		json_object_set_number(root_object, "slave_offset_from_master", atof(tmpBuf));
+		if(ptpClock->slaveStats.statsCalculated) {
+			//fprintf(out, ", mean % .09f s, dev % .09f s",
+			//    ptpClock->slaveStats.ofmMean,
+			//    ptpClock->slaveStats.ofmStdDev
+			//);
+			json_object_set_number(root_object, "slave_offset_from_master_mean", ptpClock->slaveStats.ofmMean);
+			json_object_set_number(root_object, "slave_offset_from_master_stdev", ptpClock->slaveStats.ofmStdDev);
+		}
+		//fprintf(out,"\n");
+
+		if(ptpClock->portDS.delayMechanism == E2E) {
+			memset(tmpBuf, 0, sizeof(tmpBuf));
+			snprint_TimeInternal(tmpBuf, sizeof(tmpBuf), &ptpClock->currentDS.meanPathDelay);
+			//fprintf(out, 		STATUSPREFIX" %s s","Mean Path Delay", tmpBuf);
+			json_object_set_number(root_object, "slave_mean_path_delay", atof(tmpBuf));
+			if(ptpClock->slaveStats.statsCalculated) {
+				//fprintf(out, ", mean % .09f s, dev % .09f s", ptpClock->slaveStats.mpdMean, ptpClock->slaveStats.mpdStdDev);
+				json_object_set_number(root_object, "slave_mean_path_delay_mean", ptpClock->slaveStats.mpdMean);
+				json_object_set_number(root_object, "slave_mean_path_delay_stdev", ptpClock->slaveStats.mpdStdDev);
+			}
+			//fprintf(out,"\n");
+		}
+
+		//fprintf(out, 		STATUSPREFIX"  ","PTP Clock status");
+		if(cd->state == CS_STEP) {
+			//fprintf(out,"panic mode,");
+			json_object_set_boolean(root_object, "slave_clock_panic", 1);
+		}
+		if(cd->state == CS_NEGSTEP) {
+			//fprintf(out,"negative step,");
+			json_object_set_boolean(root_object, "slave_clock_negstep", 1);
+		}
+
+		if(global->calibrationDelay) {
+			//fprintf(out, "%s, ", ptpClock->isCalibrated ? "calibrated" : "not calibrated");
+			json_object_set_boolean(root_object, "slave_clock_calibrated", ptpClock->isCalibrated);
+		}
+
+		if(global->noAdjust) {
+			//fprintf(out, "read-only");
+		} else {
+			//fprintf(out, "%s", (cd->state == CS_LOCKED) ? "stabilised" : "not stabilised");
+			json_object_set_boolean(root_object, "slave_clock_stabilised", (cd->state == CS_LOCKED));
+		}
+		//fprintf(out,"\n");
+
+	} /* PTP_SLAVE */
+
+	if(ptpClock->portDS.portState == PTP_MASTER || ptpClock->portDS.portState == PTP_PASSIVE) {
+
+		//fprintf(out, 		STATUSPREFIX"  %d","Priority1 ", ptpClock->defaultDS.priority1);
+		json_object_set_number(root_object, "priority1", ptpClock->defaultDS.priority1);
+		if(ptpClock->portDS.portState == PTP_PASSIVE) {
+			fprintf(out, " (best master: %d)", ptpClock->parentDS.grandmasterPriority1);
+			json_object_set_number(root_object, "best_master_priority1", ptpClock->parentDS.grandmasterPriority1);
+		}
+		//fprintf(out,"\n");
+		//fprintf(out, 		STATUSPREFIX"  %d","Priority2 ", ptpClock->defaultDS.priority2);
+		json_object_set_number(root_object, "priority2", ptpClock->defaultDS.priority2);
+		if(ptpClock->portDS.portState == PTP_PASSIVE) {
+			//fprintf(out, " (best master: %d)", ptpClock->parentDS.grandmasterPriority2);
+			json_object_set_number(root_object, "best_master_priority2", ptpClock->parentDS.grandmasterPriority2);
+		}
+		//fprintf(out,"\n");
+		//fprintf(out, 		STATUSPREFIX"  %d","ClockClass ", ptpClock->defaultDS.clockQuality.clockClass);
+		json_object_set_number(root_object, "clock_class", ptpClock->defaultDS.clockQuality.clockClass);
+		if(ptpClock->portDS.portState == PTP_PASSIVE) {
+			//fprintf(out, " (best master: %d)", ptpClock->parentDS.grandmasterClockQuality.clockClass);
+			json_object_set_number(root_object, "master_clock_class", ptpClock->parentDS.grandmasterClockQuality.clockClass);
+		}
+		//fprintf(out,"\n");
+	}
+
+	json_object_set_null(root_object, "peer_mean_path_delay");
+	json_object_set_null(root_object, "log_sync_interval");
+	json_object_set_null(root_object, "log_delay_request_interval");
+	json_object_set_null(root_object, "log_peer_delay_request_interval");
+	json_object_set_null(root_object, "log_announce_interval");
+
+	if(ptpClock->portDS.portState == PTP_MASTER || ptpClock->portDS.portState == PTP_PASSIVE ||
+		ptpClock->portDS.portState == PTP_SLAVE) {
+		if(ptpClock->portDS.delayMechanism == P2P) {
+			memset(tmpBuf, 0, sizeof(tmpBuf));
+			snprint_TimeInternal(tmpBuf, sizeof(tmpBuf), &ptpClock->portDS.peerMeanPathDelay);
+			//fprintf(out, 		STATUSPREFIX" %s s","Mean Path (p)Delay", tmpBuf);
+			json_object_set_number(root_object, "peer_mean_path_delay", atof(tmpBuf));
+			//fprintf(out,"\n");
+			if (ptpClock->portDS.logMinPdelayReqInterval != UNICAST_MESSAGEINTERVAL) {
+				json_object_set_number(root_object, "log_peer_delay_request_interval", ptpClock->portDS.logMinPdelayReqInterval);
+			}
+		}
+
+		//fprintf(out,		STATUSPREFIX"  ","Message rates");
+		if (ptpClock->portDS.logSyncInterval == UNICAST_MESSAGEINTERVAL) {
+		} else {
+			//fprintf(out,"[UC-unknown]");
+			json_object_set_number(root_object, "log_sync_interval", ptpClock->portDS.logSyncInterval);
+		}
+		//else if (ptpClock->portDS.logSyncInterval <= 0)
+		//	fprintf(out,"%.0f/s",pow(2,-ptpClock->portDS.logSyncInterval));
+		//else
+		//	fprintf(out,"1/%.0fs",pow(2,ptpClock->portDS.logSyncInterval));
+		//fprintf(out, " sync");
+
+		if(ptpClock->portDS.delayMechanism == E2E) {
+			if (ptpClock->portDS.logMinDelayReqInterval != UNICAST_MESSAGEINTERVAL) {
+				json_object_set_number(root_object, "log_delay_request_interval", ptpClock->portDS.logMinDelayReqInterval);
+			}
+			//else if (ptpClock->portDS.logMinDelayReqInterval <= 0)
+			//	fprintf(out,", %.0f/s",pow(2,-ptpClock->portDS.logMinDelayReqInterval));
+			//else
+			//	fprintf(out,", 1/%.0fs",pow(2,ptpClock->portDS.logMinDelayReqInterval));
+			//fprintf(out, " delay");
+		}
+
+		if (ptpClock->portDS.logAnnounceInterval != UNICAST_MESSAGEINTERVAL) {
+			json_object_set_number(root_object, "log_announce_interval", ptpClock->portDS.logAnnounceInterval);
+		}
+		//else if (ptpClock->portDS.logAnnounceInterval <= 0)
+	    	//	fprintf(out,", %.0f/s",pow(2,-ptpClock->portDS.logAnnounceInterval));
+		//else
+		//	printf(out,", 1/%.0fs",pow(2,ptpClock->portDS.logAnnounceInterval));
+		//printf(out, " announce");
+
+		//printf(out,"\n");
+	}
+
+	json_object_set_number(root_object, "message_recv_rate", ptpClock->counters.messageReceiveRate);
+	json_object_set_number(root_object, "bytes_recv_rate", ptpClock->counters.bytesReceiveRate);
+	json_object_set_number(root_object, "message_send_rate", ptpClock->counters.messageSendRate);
+	json_object_set_number(root_object, "bytes_send_rate", ptpClock->counters.bytesSendRate);
+	json_object_set_null(root_object, "master_slave_count");
+	json_object_set_null(root_object, "master_unicast_destination_count");
+
+	//fprintf(out, 		STATUSPREFIX"  ","Performance");
+	//fprintf(out,"Message RX %d/s %d Bps, TX %d/s %d Bps",
+	//	ptpClock->counters.messageReceiveRate,
+	//	ptpClock->counters.bytesReceiveRate,
+	//	ptpClock->counters.messageSendRate,
+	//	ptpClock->counters.bytesSendRate);
+	if(ptpClock->portDS.portState == PTP_MASTER) {
+		if(global->unicastNegotiation) {
+			//fprintf(out,", slaves %d", ptpClock->slaveCount);
+			json_object_set_number(root_object, "master_slave_count", ptpClock->slaveCount);
+		} else if (global->transportMode == TMODE_UC) {
+			//fprintf(out,", slaves %d", ptpClock->unicastDestinationCount);
+			json_object_set_number(root_object, "master_unicast_destination_count", ptpClock->unicastDestinationCount);
+		}
+	}
+
+	//fprintf(out,"\n");
+
+	json_object_set_null(root_object, "slave_announce_count");
+	json_object_set_null(root_object, "slave_sync_count");
+	json_object_set_null(root_object, "slave_followup_count");
+	json_object_set_null(root_object, "slave_delay_request_count");
+	json_object_set_null(root_object, "slave_delay_response_count");
+
+	if ( ptpClock->portDS.portState == PTP_SLAVE || ptpClock->defaultDS.clockQuality.clockClass == 255 ) {
+		//fprintf(out, 		STATUSPREFIX"  %lu\n","Announce received", (unsigned long)ptpClock->counters.announceMessagesReceived);
+		json_object_set_number(root_object, "slave_announce_count", (unsigned long)ptpClock->counters.announceMessagesReceived);
+		//fprintf(out, 		STATUSPREFIX"  %lu\n","Sync received", (unsigned long)ptpClock->counters.syncMessagesReceived);
+		json_object_set_number(root_object, "slave_sync_count", (unsigned long)ptpClock->counters.syncMessagesReceived);
+		if(ptpClock->defaultDS.twoStepFlag) {
+			//fprintf(out, 		STATUSPREFIX"  %lu\n","Follow-up received", (unsigned long)ptpClock->counters.followUpMessagesReceived);
+			json_object_set_number(root_object, "slave_followup_count", (unsigned long)ptpClock->counters.followUpMessagesReceived);
+		}
+		if(ptpClock->portDS.delayMechanism == E2E) {
+			//fprintf(out, 		STATUSPREFIX"  %lu\n","DelayReq sent", (unsigned long)ptpClock->counters.delayReqMessagesSent);
+			json_object_set_number(root_object, "slave_delay_request_count", (unsigned long)ptpClock->counters.delayReqMessagesSent);
+			//fprintf(out, 		STATUSPREFIX"  %lu\n","DelayResp received", (unsigned long)ptpClock->counters.delayRespMessagesReceived);
+			json_object_set_number(root_object, "slave_delay_response_count", (unsigned long)ptpClock->counters.delayRespMessagesReceived);
+		}
+	}
+
+	json_object_set_null(root_object, "master_announce_received");
+	json_object_set_null(root_object, "master_announce_sent");
+	json_object_set_null(root_object, "master_sync_sent");
+	json_object_set_null(root_object, "master_followup_sent");
+	json_object_set_null(root_object, "master_delay_request_received");
+	json_object_set_null(root_object, "master_delay_response_sent");
+
+	if( ptpClock->portDS.portState == PTP_MASTER || ptpClock->defaultDS.clockQuality.clockClass < 128 ) {
+		//fprintf(out, 		STATUSPREFIX"  %lu received, %lu sent \n","Announce",
+		//	(unsigned long)ptpClock->counters.announceMessagesReceived,
+		//	(unsigned long)ptpClock->counters.announceMessagesSent);
+		json_object_set_number(root_object, "master_announce_received", (unsigned long)ptpClock->counters.announceMessagesReceived);
+		json_object_set_number(root_object, "master_announce_sent", (unsigned long)ptpClock->counters.announceMessagesSent);
+		//fprintf(out, 		STATUSPREFIX"  %lu\n","Sync sent",
+		//(unsigned long)ptpClock->counters.syncMessagesSent);
+		json_object_set_number(root_object, "master_sync_sent", (unsigned long)ptpClock->counters.syncMessagesSent);
+		if(ptpClock->defaultDS.twoStepFlag) {
+			//fprintf(out, 		STATUSPREFIX"  %lu\n","Follow-up sent",
+				//(unsigned long)ptpClock->counters.followUpMessagesSent);
+			json_object_set_number(root_object, "master_followup_sent", (unsigned long)ptpClock->counters.followUpMessagesSent);
+		}
+
+		if(ptpClock->portDS.delayMechanism == E2E) {
+			//fprintf(out, 		STATUSPREFIX"  %lu\n","DelayReq received",
+			//	(unsigned long)ptpClock->counters.delayReqMessagesReceived);
+			json_object_set_number(root_object, "master_delay_request_received", (unsigned long)ptpClock->counters.delayReqMessagesReceived);
+			//fprintf(out, 		STATUSPREFIX"  %lu\n","DelayResp sent",
+			//	(unsigned long)ptpClock->counters.delayRespMessagesSent);
+			json_object_set_number(root_object, "master_delay_response_sent", (unsigned long)ptpClock->counters.delayRespMessagesSent);
+		}
+	}
+
+	json_object_set_null(root_object, "peer_delay_request_received");
+	json_object_set_null(root_object, "peer_delay_request_sent");
+	json_object_set_null(root_object, "peer_delay_response_received");
+	json_object_set_null(root_object, "peer_delay_response_sent");
+	json_object_set_null(root_object, "peer_delay_response_followup_received");
+	json_object_set_null(root_object, "peer_delay_response_followup_sent");
+
+	if(ptpClock->portDS.delayMechanism == P2P) {
+		//fprintf(out, 		STATUSPREFIX"  %lu received, %lu sent\n","PdelayReq",
+		//	(unsigned long)ptpClock->counters.pdelayReqMessagesReceived,
+		//	(unsigned long)ptpClock->counters.pdelayReqMessagesSent);
+		json_object_set_number(root_object, "peer_delay_request_received", (unsigned long)ptpClock->counters.pdelayReqMessagesReceived);
+		json_object_set_number(root_object, "peer_delay_request_sent", (unsigned long)ptpClock->counters.pdelayReqMessagesSent);
+		//fprintf(out, 		STATUSPREFIX"  %lu received, %lu sent\n","PdelayResp",
+		//	(unsigned long)ptpClock->counters.pdelayRespMessagesReceived,
+		//	(unsigned long)ptpClock->counters.pdelayRespMessagesSent);
+		json_object_set_number(root_object, "peer_delay_response_received", (unsigned long)ptpClock->counters.pdelayRespMessagesReceived);
+		json_object_set_number(root_object, "peer_delay_response_sent", (unsigned long)ptpClock->counters.pdelayRespMessagesSent);
+		//fprintf(out, 		STATUSPREFIX"  %lu received, %lu sent\n","PdelayRespFollowUp",
+		//	(unsigned long)ptpClock->counters.pdelayRespFollowUpMessagesReceived,
+		//	(unsigned long)ptpClock->counters.pdelayRespFollowUpMessagesSent);
+		json_object_set_number(root_object, "peer_delay_response_followup_received", (unsigned long)ptpClock->counters.pdelayRespFollowUpMessagesReceived);
+		json_object_set_number(root_object, "peer_delay_response_followup_sent", (unsigned long)ptpClock->counters.pdelayRespFollowUpMessagesSent);
+	}
+
+	if(ptpClock->counters.domainMismatchErrors) {
+		//fprintf(out, 		STATUSPREFIX"  %lu\n","Domain Mismatches", (unsigned long)ptpClock->counters.domainMismatchErrors);
+	}
+	json_object_set_number(root_object, "domain_mismatches", (unsigned long)ptpClock->counters.domainMismatchErrors);
+
+	if(ptpClock->counters.ignoredAnnounce) {
+		//fprintf(out, 		STATUSPREFIX"  %lu\n","Ignored Announce", (unsigned long)ptpClock->counters.ignoredAnnounce);
+	}
+	json_object_set_number(root_object, "ignored_announce", (unsigned long)ptpClock->counters.ignoredAnnounce);
+
+	if(ptpClock->counters.unicastGrantsDenied) {
+		//fprintf(out, 		STATUSPREFIX"  %lu\n","Denied Unicast", (unsigned long)ptpClock->counters.unicastGrantsDenied);
+		json_object_set_number(root_object, "denied_unicast", (unsigned long)ptpClock->counters.unicastGrantsDenied);
+	}
+
+	//fprintf(out, 		STATUSPREFIX"  %lu\n","State transitions", (unsigned long)ptpClock->counters.stateTransitions);
+	json_object_set_number(root_object, "state_transitions", (unsigned long)ptpClock->counters.stateTransitions);
+	//fprintf(out, 		STATUSPREFIX"  %lu\n","PTP Engine resets", (unsigned long)ptpClock->resetCount);
+	json_object_set_number(root_object, "engine_resets", (unsigned long)ptpClock->resetCount);
+	//fprintf(out,"                                   \n");
+
+	if(cd) {
+		JSON_Value *clocks_value = json_value_init_object();
+		JSON_Object *clocks = json_value_get_object(clocks_value);
+		//char buf[100];
+		//int i = 1;
+		for(ClockDriver *ccd = *cd->_first; ccd != NULL; ccd=ccd->_next) {
+			//ccd->putInfoLine(ccd, buf, 100);
+			//fprintf(out, "Clock %d: %-9s : %s\n", i++, ccd->name, buf);
+			JSON_Value *clk_value = json_value_init_object();
+			JSON_Object *clk = json_value_get_object(clk_value);
+
+			json_object_set_string(clk, "state", getClockStateShortName(ccd->state));
+			json_object_set_string(clk, "ref", ccd->refName);
+			json_object_set_boolean(clk, "readonly", ccd->config.readOnly);
+			json_object_set_boolean(clk, "best_clock", ccd->bestClock);
+			snprint_CckTimestamp(tmpBuf, sizeof(tmpBuf), &ccd->refOffset);
+			json_object_set_number(clk, "offset", atof(tmpBuf));
+			json_object_set_number(clk, "adev", ccd->adev);
+			json_object_set_number(clk, "freq", ccd->lastFrequency);
+			
+			json_object_set_value(clocks, ccd->name, clk_value);
+		}
+		//i = 1;
+		//for(ClockDriver *ccd = *cd->_first; ccd != NULL; ccd=ccd->_next) {
+		//	ccd->putStatsLine(ccd, buf, 100);
+		//	fprintf(out, "Clock %d: %-9s : %s\n",i++, ccd->name, buf);
+		//}
+		json_object_set_value(root_object, "clocks", clocks_value);
+	}
+
+	fprintf(out, json_serialize_to_string_pretty(root_value));
+	json_value_free(root_value);
+        fflush(out);
+	return;
+
+}
 void
 displayPortIdentity(PortIdentity *port, const char *prefixMessage)
 {

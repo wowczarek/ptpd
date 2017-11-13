@@ -146,6 +146,7 @@ typedef struct {
 	LogFileHandler recordLog;
 	LogFileHandler eventLog;
 	LogFileHandler statusLog;
+	LogFileHandler jsonLog;
 
 	int leapSecondPausePeriod;
 	Enumeration8 leapSecondHandling;

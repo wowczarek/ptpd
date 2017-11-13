@@ -326,6 +326,9 @@ toState(UInteger8 state, const GlobalConfig *global, PtpClock *ptpClock)
 		if(global->statusLog.logEnabled) {
 		    writeStatusFile(ptpClock, global, TRUE);
 		}
+		if(global->jsonLog.logEnabled) {
+		    writeJsonFile(ptpClock, global);
+		}
 
 		setPortState(ptpClock, PTP_INITIALIZING);
 		break;
@@ -570,6 +573,8 @@ doState(GlobalConfig *global, PtpClock *ptpClock)
 	    }
 	    if(global->statusLog.logEnabled)
 		writeStatusFile(ptpClock, global, TRUE);
+	    if(global->jsonLog.logEnabled)
+		writeJsonFile(ptpClock, global);
 	    return;
 	case PTP_DISABLED:
 		if(!ptpClock->disabled) {
@@ -895,6 +900,8 @@ doState(GlobalConfig *global, PtpClock *ptpClock)
 
         if(global->statusLog.logEnabled && tmrExpired(ptpClock, STATUSFILE_UPDATE)) {
                 writeStatusFile(ptpClock,global,TRUE);
+                if(global->jsonLog.logEnabled)
+                  writeJsonFile(ptpClock,global);
 		/* ensures that the current updare interval is used */
 		tmrStart(ptpClock, STATUSFILE_UPDATE,global->statusFileUpdateInterval);
         }

@@ -108,6 +108,7 @@ static const ConfigTemplate configTemplates[] = {
     { "full-logging", "Enable logging for all facilities (statistics, status, log file)", {
 	{"global:log_status", "y"},
 	{"global:status_file", "/var/run/ptpd.status"},
+	{"global:json_file", "/var/run/ptpd.json"},
 	{"global:statistics_log_interval", "1"},
 	{"global:lock_file", "/var/run/ptpd.pid"},
 	{"global:log_statistics", "y"},
@@ -121,6 +122,7 @@ static const ConfigTemplate configTemplates[] = {
     { "full-logging-instance", "Logging for all facilities using 'instance' variable which the user should provide", {
 	{"global:log_status", "y"},
 	{"global:status_file", "@rundir@/ptpd.@instance@.status"},
+	{"global:json_file", "@rundir@/ptpd.@instance@.json"},
 	{"global:statistics_log_interval", "1"},
 	{"global:lock_file", "@rundir@/ptpd.@instance@.pid"},
 	{"global:log_statistics", "y"},
@@ -472,6 +474,13 @@ loadDefaultSettings( GlobalConfig* global )
 	global->statusLog.logFP = NULL;
 	global->statusLog.truncateOnReopen = FALSE;
 	global->statusLog.unlinkOnClose = TRUE;
+
+	global->jsonLog.logID = "status";
+	global->jsonLog.openMode = "w";
+	strncpy(global->jsonLog.logPath, DEFAULT_STATUSFILE, PATH_MAX);
+	global->jsonLog.logFP = NULL;
+	global->jsonLog.truncateOnReopen = FALSE;
+	global->jsonLog.unlinkOnClose = TRUE;
 
 	global->deduplicateLog = TRUE;
 
