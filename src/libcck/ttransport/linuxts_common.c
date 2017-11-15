@@ -562,17 +562,10 @@ getLinuxTxTimestamp(TTransport *transport, TTransportMessage *txMessage) {
 
 gameover:
 
-	if(tsMessage.hasTimestamp && transport->callbacks.matchData) {
-	    if(transport->callbacks.matchData(transport->owner, transport,
-						txMessage->data, txMessage->length,
-						tsMessage.data, tsMessage.length)) {
+	if(tsMessage.hasTimestamp) {
 		txMessage->timestamp = tsMessage.timestamp;
 		txMessage->hasTimestamp = true;
 		return;
-	    } else {
-		    CCK_DBG(THIS_COMPONENT"getTxTimestamp(%s) matchData: TX timestamp does not match transmitted messsage\n",
-					    transport->name);
-	    }
 	}
 	txMessage->hasTimestamp = false;
 	tsOps.clear(&txMessage->timestamp);
