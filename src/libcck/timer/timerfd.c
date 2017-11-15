@@ -136,8 +136,8 @@ timerShutdown (CckTimer *self) {
 static void
 timerStart (CckTimer *self, const double interval) {
 
-    double initial = 0.0;
     double actual = max(interval, CCK_TIMER_MIN_INTERVAL);
+    double initial = actual;
     struct timespec ts;
     struct itimerspec its;
 
@@ -207,6 +207,13 @@ timerFdExpired(void *myFd, void *timer) {
 
     if(read(self->myFd.fd, &dummy, sizeof(dummy))) {
 	self->_expired = true;
+
+	if(self->config.delayOnce) {
+	    self->config.delay = 0.0;
+	    self->config.randomDelay = false;
+	    self->config.delayOnce = false;
+	}
+
     }
 
 }

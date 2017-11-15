@@ -186,7 +186,6 @@ ptpAddrCompare(void *a, void *b)
 {
 
     CckTransportAddress *pa = a;
-
     CckAddressToolset *ts = getAddressToolset(pa->family);
 
     if(ts == NULL) {
@@ -206,6 +205,7 @@ ptpAddrIsEmpty(void *input)
     }
 
     const CckTransportAddress *addr = input;
+
     CckAddressToolset *ts = getAddressToolset(addr->family);
 
     if(ts == NULL) {
@@ -366,6 +366,10 @@ sendPtpData(PtpClock *ptpClock, bool event, char *data, ssize_t len, void *dst, 
 	    setTransportAddressPort(addr, PTP_EVENT_PORT);
 	} else {
 	    setTransportAddressPort(addr, PTP_GENERAL_PORT);
+	}
+
+	if(addr != NULL) {
+	    tr->outgoingMessage._family = addr->family;
 	}
 
 	tr->outgoingMessage.length = len;

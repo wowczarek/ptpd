@@ -274,6 +274,11 @@ static void itimerUpdate() {
 	if(it->left <= 0) {
 	    it->left = it->interval;
 	    t->_expired = true;
+	    if(t->config.delayOnce) {
+		t->config.delay = 0.0;
+		t->config.randomDelay = false;
+		t->config.delayOnce = false;
+	    }
 	    CCK_DBG(THIS_COMPONENT"(%s): timer expired, re-armed to %d ticks (%d us)%s\n",
 				    t->name, it->interval, it->interval * ITIMER_INTERVAL_US,
 				    t->config.oneShot ? ", one-shot, will stop on next expiry check" : "");

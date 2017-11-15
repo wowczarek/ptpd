@@ -186,6 +186,7 @@ initCckTimers(CckFdSet *set)
 	_timers[i] = createCckTimer(CCKTIMER_ANY, timerDesc[i]);
 	_timers[i]->numId = i;
 	_timers[i]->config.randomDelay = true;
+	_timers[i]->config.delayOnce = true;
 
 	int res = _timers[i]->init(_timers[i], false, set);
 

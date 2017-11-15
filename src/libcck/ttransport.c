@@ -958,7 +958,13 @@ clearTTransportMessage(TTransportMessage *message) {
 
 void	dumpTTransportMessage(const TTransportMessage *message) {
 
-	CckAddressToolset* ts = getAddressToolset(message->_family);
+	int family = message->_family;
+
+	if(!family && message->destination) {
+	    family = message->destination->family;
+	}
+
+	CckAddressToolset* ts = getAddressToolset(family);
 
 	CCK_INFO("\n");
 	CCK_INFO("+-------------------------------------------+\n");
@@ -1004,7 +1010,7 @@ void	dumpTTransportMessage(const TTransportMessage *message) {
 			tmpstr(a3, ts->strLen);
 			ts->toString(a3, a3_len, message->destination);
 
-	    CCK_INFO("  for transmission to: %s\n", message->destination->populated ? a3 : " - ");
+	    CCK_INFO(" for transmission to: %s\n", message->destination->populated ? a3 : " - ");
 
 		    }
 

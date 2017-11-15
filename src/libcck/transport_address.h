@@ -118,6 +118,7 @@
 
 /* transport address families provided by timestamping transports */
 enum {
+	TT_FAMILY_UNSET,	/* n/a */
 	TT_FAMILY_IPV4,		/* UDPv4 */
 	TT_FAMILY_IPV6,		/* UDPv6 */
 	TT_FAMILY_ETHERNET,	/* Ethernet L2 */

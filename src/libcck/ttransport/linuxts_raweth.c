@@ -509,7 +509,7 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
     ret = recvmsg(self->myFd.fd, &msg, MSG_DONTWAIT | txFlags);
 
     /* skipping n-- next messages */
-    if(self->_skipRxMessages) {
+    if(self->_skipRxMessages && !txFlags) {
 	CCK_DBG(THIS_COMPONENT"receiveMessage(%s): _skipRxMessages = %d, dropping message\n",
 		    self->name, self->_skipRxMessages);
 	self->_skipRxMessages--;
@@ -566,17 +566,13 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
 		CCK_DBG(THIS_COMPONENT"receiveMessage(%s): got timestamp %d.%d\n",
 		    self->name, message->timestamp.seconds, message->timestamp.nanoseconds);
 		message->hasTimestamp = true;
-		/* if this is a TX timestamp, the buffer includes transport protocol headers - skip them */
-		if(txFlags) {
-		    ret = shiftBuffer(message->data, message->capacity, ret, self->headerLen);
-		}
 	    }
 	}
 
     }
 
+    /* for Ethernet, the buffer always includes transport protocol headers - skip them */
     memcpy(message->data, buf + self->headerLen, ret - self->headerLen);
-
     message->length = ret - self->headerLen;
 
     if(self->config.timestamping && !message->hasTimestamp) {

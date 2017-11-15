@@ -412,6 +412,7 @@ setupPtpTimer(PtpTimer *timer, CckFdSet *fdSet, const char *name)
 
     myTimer->owner = timer;
     myTimer->config.randomDelay = true;
+    myTimer->config.delayOnce = true;
     myTimer->callbacks.onExpired = ptpTimerExpiry;
     timer->data = myTimer;
 

@@ -119,6 +119,7 @@ static bool
 setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 
 	bool ret = false;
+
 	CckAddressToolset *tools = getAddressToolset(getTTransportTypeFamily(config->_type));
 
 	config->disabled = false;
@@ -549,6 +550,7 @@ static void setPtpNetworkInfo(PtpClock *ptpClock)
 	    ptpClock->portDS.addressLength);
 
     if(event->hwAddress.populated) {
+
 	CckAddressToolset *ts = getAddressToolset(event->hwAddress.family);
 	ptpClock->portDS.physicalAddressLength = min(16, ts->addrSize);
 	memcpy(ptpClock->portDS.physicalAddressField,

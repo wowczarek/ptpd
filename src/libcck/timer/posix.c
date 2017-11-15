@@ -155,8 +155,8 @@ timerShutdown (CckTimer *self) {
 static void
 timerStart (CckTimer *self, const double interval) {
 
-    double initial = 0.0;
     double actual = max(interval, CCK_TIMER_MIN_INTERVAL);
+    double initial = actual;
     struct timespec ts;
     struct itimerspec its;
     CCK_GET_PDATA(CckTimer, posix, self, myData);
@@ -277,6 +277,13 @@ posixSigHandler(int signo, siginfo_t *info, void *usercontext) {
     /* Hopkirk (deceased) */
     if(timer) {
         timer->_expired = true;
+
+	if(timer->config.delayOnce) {
+	    timer->config.delay = 0.0;
+	    timer->config.randomDelay = false;
+	    timer->config.delayOnce = false;
+	}
+
     }
 
 }

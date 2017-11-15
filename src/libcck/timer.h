@@ -75,8 +75,9 @@ typedef struct {
     bool disabled;			/* timer is disabled */
     bool oneShot;			/* one-shot timer, no auto-rearm */
     double interval;			/* timer interval */
-    bool randomDelay;			/* randomly delay first start */
-    double delay;			/* fixed delay of first start */
+    bool randomDelay;			/* randomly delay start */
+    double delay;			/* fixed delay start */
+    bool delayOnce;			/* delay the timer on first start only */
 } CckTimerConfig;
 
 typedef struct CckTimer CckTimer;
