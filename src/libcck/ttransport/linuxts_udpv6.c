@@ -581,7 +581,7 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
     ret = recvmsg(self->myFd.fd, &msg, MSG_DONTWAIT | txFlags);
 
     /* skipping n-- next messages */
-    if(self->_skipRxMessages) {
+    if(self->_skipRxMessages && !txFlags) {
 	CCK_DBG(THIS_COMPONENT"receiveMessage(%s): _skipRxMessages = %d, dropping message\n",
 		    self->name, self->_skipRxMessages);
 	self->_skipRxMessages--;

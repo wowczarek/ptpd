@@ -154,7 +154,7 @@ typedef struct {
 	CckTransportAddress from;		/* source of received message */
 	CckTransportAddress to;			/* destination of received message */
 	CckTimestamp timestamp;			/* RX timestamp on receipt, TX timestamp after transmission */
-	int _family;				/* address family this message was received with */
+	int _family;				/* address family this message was received with or is being sent to */
 	int _flags;				/* any internal flags a transport implementation may want to use */
 } TTransportMessage;
 

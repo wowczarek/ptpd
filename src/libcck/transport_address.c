@@ -51,6 +51,7 @@
 /* constants / data */
 
 static const char *addressFamilyNames[] = {
+	[TT_FAMILY_UNSET]	= "unset / unknown",
 	[TT_FAMILY_IPV4]	= "IPv4",
 	[TT_FAMILY_IPV6]	= "IPv6",
 	[TT_FAMILY_ETHERNET]	= "Ethernet",
@@ -65,6 +66,7 @@ static const char *addressFamilyNames[] = {
 #endif /* !AF_LOCAL && AF_UNIX */
 
 static const int addressFamilyMappings[] = {
+	[TT_FAMILY_UNSET]	= AF_UNSPEC,
 	[TT_FAMILY_IPV4]	= AF_INET,
 	[TT_FAMILY_IPV6]	= AF_INET6,
 	[TT_FAMILY_ETHERNET]	= AF_UNSPEC,
@@ -147,10 +149,15 @@ static void addrListDump	(CckTransportAddressList *list);
 
 CckAddressToolset* getAddressToolset(int family)
 {
-	if(family < 0 || family >= TT_FAMILY_MAX) {
+	if(family == TT_FAMILY_UNSET) {
+	    return NULL;
+	}
+
+	if(family < TT_FAMILY_UNSET || family >= TT_FAMILY_MAX) {
 	    CCK_ERROR("getAddressToolset(): unsupported address family %02x\n", family);
 	    return NULL;
 	}
+
 	return &addressFamilyToolsets[family];
 }
 
@@ -556,7 +563,6 @@ transportAddressToString_ethernet (char *buf, const size_t len, const CckTranspo
 
     snprintf(buf, len, "%02x:%02x:%02x:%02x:%02x:%02x",
     addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
-
     return buf;
 
 }
@@ -596,6 +602,7 @@ transportAddressFromString_ethernet (CckTransportAddress *out, const char *addre
     out->family = TT_FAMILY_ETHERNET;
 
     if(!ether_hostton(address, &out->addr.ether)) {
+	out->populated = true;
 	return true;
     }
 
@@ -629,7 +636,10 @@ transportAddressFromString_ethernet (CckTransportAddress *out, const char *addre
 
     }
 
-    if(i == 6 ) return true;
+    if(i == 6 ) {
+	out->populated = true;
+	return true;
+    }
 
     CCK_ERROR("transportAddressFromString(%s): Could not resolve / encode Ethernet address\n",
 		address);
@@ -647,11 +657,17 @@ transportAddressFromString_local (CckTransportAddress *out, const char *address)
 	return false;
     }
 
+    if(!strlen(address)) {
+	CCK_ERROR("transportAddressFromString(): empty string given\n");
+	return false;
+    }
+
     out->family = TT_FAMILY_LOCAL;
 
     memset(out->addr.local.sun_path, 0, TT_ADDRLEN_LOCAL);
     strncpy(out->addr.local.sun_path, address, min(TT_ADDRLEN_LOCAL, strlen(address)));
 
+    out->populated = true;
     return true;
 
 }
