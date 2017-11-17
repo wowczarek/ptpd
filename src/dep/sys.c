@@ -1302,7 +1302,7 @@ writeJsonFile(PtpClock *ptpClock,const GlobalConfig *global)
 	if(global->jsonLog.logFP == NULL)
 	    return;
 
-	char outBuf[8192];
+	char outBuf[3072];
 	FILE* out = global->jsonLog.logFP;
 	memset(outBuf, 0, sizeof(outBuf));
 	setbuf(out, outBuf);
@@ -1311,9 +1311,9 @@ writeJsonFile(PtpClock *ptpClock,const GlobalConfig *global)
 	}
 	rewind(out);
 
-	int n = getAlarmSummary(NULL, 0, ptpClock->alarms, ALRM_MAX);
-	char alarmBuf[n];
-	getAlarmSummary(alarmBuf, n, ptpClock->alarms, ALRM_MAX);
+	//int n = getAlarmSummary(NULL, 0, ptpClock->alarms, ALRM_MAX);
+	//char alarmBuf[n];
+	//getAlarmSummary(alarmBuf, n, ptpClock->alarms, ALRM_MAX);
 
 	char timeStr[MAXTIMESTR];
 	char hostName[MAXHOSTNAMELEN];
@@ -1373,11 +1373,22 @@ writeJsonFile(PtpClock *ptpClock,const GlobalConfig *global)
 	//fprintf(out, 		STATUSPREFIX"  %s\n","Port state", portState_getName(ptpClock->portDS.portState));
 	json_object_set_string(root_object, "port_state", portState_getName(ptpClock->portDS.portState));
 
-	json_object_set_null(root_object, "alarms");
-	if(strlen(alarmBuf) > 0) {
-		fprintf(out, 		STATUSPREFIX"  %s\n","Alarms", alarmBuf);
-		json_object_set_string(root_object, "alarms", alarmBuf);
+	AlarmEntry *alarm;
+	JSON_Value *set_value = json_value_init_array();
+        JSON_Array *set = json_value_get_array(set_value);
+	JSON_Value *clr_value = json_value_init_array();
+        JSON_Array *clr = json_value_get_array(clr_value);
+	for(int i=0; i < ALRM_MAX; i++) {
+		alarm = &ptpClock->alarms[i];
+		if(alarm->state == ALARM_SET) {
+			json_array_append_string(set, alarm->shortName);
+		} else if (alarm->state == ALARM_CLEARED) {
+			json_array_append_string(clr, alarm->shortName);
+		}
 	}
+	//fprintf(out, 		STATUSPREFIX"  %s\n","Alarms", alarmBuf);
+	json_object_dotset_value(root_object, "alarms.set", set_value);
+	json_object_dotset_value(root_object, "alarms.cleared", clr_value);
 
 	memset(tmpBuf, 0, sizeof(tmpBuf));
 	snprint_PortIdentity(tmpBuf, sizeof(tmpBuf), &ptpClock->portDS.portIdentity);
