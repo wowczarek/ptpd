@@ -1302,7 +1302,7 @@ writeJsonFile(PtpClock *ptpClock,const GlobalConfig *global)
 	if(global->jsonLog.logFP == NULL)
 	    return;
 
-	char outBuf[3072];
+	char outBuf[8192];
 	FILE* out = global->jsonLog.logFP;
 	memset(outBuf, 0, sizeof(outBuf));
 	setbuf(out, outBuf);
