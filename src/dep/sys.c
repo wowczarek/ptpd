@@ -1286,6 +1286,7 @@ writeStatusFile(PtpClock *ptpClock,const GlobalConfig *global, Boolean quiet)
 void
 writeJsonFile(PtpClock *ptpClock,const GlobalConfig *global)
 {
+
 	ClockDriver *cd = ptpClock->clockDriver;
 
         //Example from https://github.com/kgabis/parson/README.md
@@ -1791,9 +1792,11 @@ writeJsonFile(PtpClock *ptpClock,const GlobalConfig *global)
 		json_object_set_value(root_object, "clocks", clocks_value);
 	}
 
-	fprintf(out, json_serialize_to_string_pretty(root_value));
+	char* json_str = json_serialize_to_string_pretty(root_value);
+	fprintf(out, json_str);
+	json_free_serialized_string(json_str);
 	json_value_free(root_value);
-        fflush(out);
+	fflush(out);
 	return;
 
 }
