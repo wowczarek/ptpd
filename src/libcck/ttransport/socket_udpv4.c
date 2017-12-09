@@ -108,7 +108,8 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     copyCckTransportAddress(&self->hwAddress, &myData->intInfo.hwAddress);
 
     if(!self->hwAddress.populated) {
-	CCK_NOTICE(THIS_COMPONENT"tTransportInit(%s): No hardware address available, using protocol address for EUID\n");
+	CCK_NOTICE(THIS_COMPONENT"tTransportInit(%s): No hardware address available, using protocol address for EUID\n",
+		self->name);
     }
 
     /* if initialising with existing config, it's a restart */
