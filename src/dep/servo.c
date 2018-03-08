@@ -588,6 +588,9 @@ updateOffset(TimeInternal * send_time, TimeInternal * recv_time,
 	}
 
 	/* filter 'offsetFromMaster' */
+	if(ofm_filt->nsec_prev == 0) {
+	    ofm_filt->nsec_prev = ptpClock->currentDS.offsetFromMaster.nanoseconds;
+	}
 
 	ofm_filt->y = ptpClock->currentDS.offsetFromMaster.nanoseconds / 2 +
 		ofm_filt->nsec_prev / 2;

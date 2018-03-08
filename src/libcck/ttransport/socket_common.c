@@ -84,7 +84,7 @@ initTimestamping_socket_common(TTransport *self,  TTsocketTimestampConfig *confi
 
 #else /* not QNX or not CCK_EXPERIMENTAL: warn about poor precision */
 
-	CCK_WARNING("initTimestamping(%s): no socket timestamp API available, timestamps may imprecise\n",
+	CCK_WARNING("initTimestamping(%s): no socket timestamp API available, expect poor timestamp precision\n",
 		    self->name);
 
 #endif

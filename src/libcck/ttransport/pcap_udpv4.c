@@ -96,6 +96,19 @@ _probeTTransport_pcap_udpv4(const char *path, const int flags) {
 
 }
 
+void
+_initTTransportConfig_pcap_udpv4(TTransportConfig_pcap_udpv4 *myConfig, const int family)
+{
+    _initTTransportConfig_udp_common(&myConfig->common, family);
+}
+
+void
+_freeTTransportConfig_pcap_udpv4(TTransportConfig_pcap_udpv4 *myConfig)
+{
+    _freeTTransportConfig_udp_common(&myConfig->common);
+
+}
+
 static int
 tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSet) {
 
@@ -118,9 +131,9 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     CCK_GET_PCONFIG(TTransport, pcap_udpv4, self, myConfig);
     CCK_GET_PCONFIG(TTransport, pcap_udpv4, config, yourConfig);
 
-    if(!getInterfaceInfo(&myData->intInfo, yourConfig->interface, self->family, &yourConfig->sourceAddress, false)) {
+    if(!getInterfaceInfo(&myData->intInfo, yourConfig->common.interface, self->family, &yourConfig->common.sourceAddress, false)) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): Interface %s not usable, cannot continue\n",
-		self->name, yourConfig->interface);
+		self->name, yourConfig->common.interface);
 	return -1;
     }
 
@@ -142,15 +155,15 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 	copyTTransportConfig(&self->config, config);
 
 	/* make a duplicate of the address list */
-	if(myConfig->multicastStreams) {
-	    CckTransportAddressList *duplicate = duplicateCckTransportAddressList(myConfig->multicastStreams);
-	    myConfig->multicastStreams = duplicate;
+	if(myConfig->common.multicastStreams) {
+	    CckTransportAddressList *duplicate = duplicateCckTransportAddressList(myConfig->common.multicastStreams);
+	    myConfig->common.multicastStreams = duplicate;
 	}
     }
 
     /* set up ports */
-    setTransportAddressPort(&myConfig->sourceAddress, myConfig->listenPort);
-    setTransportAddressPort(&self->ownAddress, myConfig->listenPort);
+    setTransportAddressPort(&myConfig->common.sourceAddress, myConfig->common.listenPort);
+    setTransportAddressPort(&self->ownAddress, myConfig->common.listenPort);
 
     /* ===== part 1: prepare the socket - we need to have it open so we don't send unreachables etc. */
 
@@ -178,7 +191,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     }
 
     /* ...unless it is forced to bind to source */
-    if(myConfig->bindToAddress) {
+    if(myConfig->common.bindToAddress) {
 	bindToAddress = true;
     }
 
@@ -194,20 +207,20 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if(ret < 0) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): could not bind to %s:%s on %s",
-	self->name, strAddr, myConfig->listenPort, myConfig->interface);
+	self->name, strAddr, myConfig->common.listenPort, myConfig->common.interface);
 	goto cleanup;
     } else {
 	CCK_DBG(THIS_COMPONENT"tTransportInit(%s): successfully bound to  %s:%d on %s\n",
-	self->name, strAddr, myConfig->listenPort, myConfig->interface);
+	self->name, strAddr, myConfig->common.listenPort, myConfig->common.interface);
     }
 
 #ifdef linux /* SO_BINDTODEVICE */
     /* multicast only */
     if( (self->config.flags & TT_CAPS_MCAST) && !(self->config.flags & TT_CAPS_UCAST)) {
-	ret = setsockopt(*fd, SOL_SOCKET, SO_BINDTODEVICE, myConfig->interface, strlen(myConfig->interface));
+	ret = setsockopt(*fd, SOL_SOCKET, SO_BINDTODEVICE, myConfig->common.interface, strlen(myConfig->common.interface));
 	if(ret < 0) {
 	    CCK_PERROR(THIS_COMPONENT"tTransport_init(%s): Failed to call SO_BINDTODEVICE on %s\n",
-			self->name, myConfig->interface);
+			self->name, myConfig->common.interface);
 	}
     }
 #endif /* linux, SO_BINDTODEVICE */
@@ -220,14 +233,14 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 	    goto cleanup;
 	}
 
-	if(myConfig->multicastTtl) {
-	    setMulticastTtl(*fd, self->family, myConfig->multicastTtl);
+	if(myConfig->common.multicastTtl) {
+	    setMulticastTtl(*fd, self->family, myConfig->common.multicastTtl);
 	}
 
     }
 
-    if(myConfig->dscpValue) {
-	setSocketDscp(*fd, self->family, myConfig->dscpValue);
+    if(myConfig->common.dscpValue) {
+	setSocketDscp(*fd, self->family, myConfig->common.dscpValue);
     }
 
     /* ===== part 2: set up libpcap reader */
@@ -237,7 +250,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if(!strlen(filterExpr)) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): could not build PCAP filter expression for %s\n",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	return -1;
     }
 
@@ -245,11 +258,11 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
 #ifdef PCAP_TSTAMP_PRECISION_NANO /* use the elaborate PCAP activation to set ns timestamp precision */
 
-    myData->readerHandle = pcap_create(myConfig->interface, errbuf);
+    myData->readerHandle = pcap_create(myConfig->common.interface, errbuf);
 
     if(myData->readerHandle == NULL) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): failed to open PCAP reader device on %s",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	goto cleanup;
     }
 
@@ -262,24 +275,24 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if (pcap_set_tstamp_precision(myData->readerHandle, PCAP_TSTAMP_PRECISION_NANO) == 0) {
 	CCK_DBG(THIS_COMPONENT"tTransportInit(%s): using PCAP_TSTAMP_PRECISION_NANO on %s\n",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	myData->nanoPrecision = true;
     }
 
     if(pcap_activate(myData->readerHandle) != 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): reader: could not activate PCAP device for %s :%s \n",
-	self->name, myConfig->interface, pcap_geterr(myData->readerHandle));
+	self->name, myConfig->common.interface, pcap_geterr(myData->readerHandle));
 	goto cleanup;
     }
 
 #else /* use pcap_open_live */
 
-    myData->readerHandle = pcap_open_live(myConfig->interface, self->inputBufferSize + self->headerLen,
+    myData->readerHandle = pcap_open_live(myConfig->common.interface, self->inputBufferSize + self->headerLen,
 					promisc, PCAP_TIMEOUT, errbuf);
 
     if(myData->readerHandle == NULL) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): failed to open PCAP reader device on %s",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	return -1;
     }
 
@@ -287,13 +300,13 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if(pcap_compile(myData->readerHandle, &program, filterExpr, 1, PCAP_NETMASK_UNKNOWN) < 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): reader: could not compile PCAP filter expression for %s: %s \n",
-	self->name, myConfig->interface, pcap_geterr(myData->readerHandle));
+	self->name, myConfig->common.interface, pcap_geterr(myData->readerHandle));
 	goto cleanup;
     }
 
     if(pcap_setfilter(myData->readerHandle, &program) < 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): reader: could not set PCAP filter for %s: %s \n",
-	self->name, myConfig->interface, pcap_geterr(myData->readerHandle));
+	self->name, myConfig->common.interface, pcap_geterr(myData->readerHandle));
 	goto cleanup;
     }
 
@@ -327,7 +340,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     self->_init = true;
 
     CCK_NOTICE(THIS_COMPONENT"Transport '%s' (%s) started\n",
-		self->name, myConfig->interface);
+		self->name, myConfig->common.interface);
 
     return 1;
 
@@ -352,10 +365,10 @@ tTransport_shutdown(TTransport *self) {
     /* leave multicast groups if we have them */
     if(self->config.flags | TT_CAPS_MCAST) {
 
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
-		joinMulticast_ipv4(myData->sockFd, mcAddr, myConfig->interface, &self->ownAddress, false);
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
+		joinMulticast_ipv4(myData->sockFd, mcAddr, myConfig->common.interface, &self->ownAddress, false);
 	    }
 	}
 
@@ -376,7 +389,7 @@ tTransport_shutdown(TTransport *self) {
     pcap_close(myData->readerHandle);
 
     if(self->_init) {
-	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->interface);
+	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->common.interface);
     }
 
     /* run any vendor-specific shutdown code */
@@ -405,7 +418,7 @@ isThisMe(TTransport *self, const char* search)
 	}
 
 	/* are we looking for my interface? */
-	if(!strncmp(search, myConfig->interface, IFNAMSIZ)) {
+	if(!strncmp(search, myConfig->common.interface, IFNAMSIZ)) {
 		return true;
 	}
 
@@ -679,11 +692,11 @@ monitor(TTransport *self, const int interval, const bool quiet) {
     CCK_GET_PDATA(TTransport, pcap_udpv4, self, myData);
 
     if(!myData->intInfo.valid) {
-	getInterfaceInfo(&myData->intInfo, myConfig->interface,
-	self->family, &myConfig->sourceAddress, true);
+	getInterfaceInfo(&myData->intInfo, myConfig->common.interface,
+	self->family, &myConfig->common.sourceAddress, true);
     }
 
-    return monitorInterface(&myData->intInfo, &myConfig->sourceAddress, quiet);
+    return monitorInterface(&myData->intInfo, &myConfig->common.sourceAddress, quiet);
 
 }
 
@@ -697,10 +710,10 @@ refresh(TTransport *self) {
     /* join multicast groups if we have them */
     if(self->config.flags | TT_CAPS_MCAST) {
 
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
-		joinMulticast_ipv4(myData->sockFd, mcAddr, myConfig->interface, &self->ownAddress, true);
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
+		joinMulticast_ipv4(myData->sockFd, mcAddr, myConfig->common.interface, &self->ownAddress, true);
 	    }
 	}
 
@@ -726,7 +739,7 @@ createFilterExpr(TTransport *self, char *buf, int size) {
     CCK_GET_PCONFIG(TTransport, pcap_udpv4, self, myConfig);
 
     /* port */
-    ret = snprintf(marker, left, "udp port %d and (", myConfig->listenPort);
+    ret = snprintf(marker, left, "udp port %d and (", myConfig->common.listenPort);
     if(!maintainStrBuf(ret, &marker, &left)) {
 	return buf;
     }
@@ -739,7 +752,7 @@ createFilterExpr(TTransport *self, char *buf, int size) {
 	}
     }
 
-    if(TT_UC_MC(self->config.flags) && myConfig->multicastStreams->count) {
+    if(TT_UC_MC(self->config.flags) && myConfig->common.multicastStreams->count) {
 	/* own address */
 	ret = snprintf(marker, left, " or ");
 	if(!maintainStrBuf(ret, &marker, &left)) {
@@ -750,9 +763,9 @@ createFilterExpr(TTransport *self, char *buf, int size) {
     /* build multicast address list */
     if(TT_MC(self->config.flags)) {
 	bool first = true;
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
 		ret = snprintf(marker, left, "%sip dst %s", first ? "" : " or ",
 			self->tools->toString(strAddr, sizeof(strAddr), mcAddr));
 		if(!maintainStrBuf(ret, &marker, &left)) {

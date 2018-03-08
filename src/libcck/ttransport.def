@@ -49,6 +49,7 @@
 #ifndef CCK_REGISTER_IMPL
 
     #include "ttransport/udp_common.h" /* currently used by all UDP transports */
+    #include "ttransport/ethernet_common.h" /* currently used by all Ethernet transports */
 
     #ifdef CCK_BUILD_TTRANSPORT_LINUXTS
 	#include "ttransport/linuxts_common.h"

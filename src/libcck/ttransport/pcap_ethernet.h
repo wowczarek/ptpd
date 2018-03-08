@@ -49,17 +49,14 @@
 #include <libcck/transport_address.h>
 
 typedef struct {
-    pcap_t *readerHandle;	/* libpcap handle for reading data */
-    pcap_t *writerHandle;	/* libpcap handle for writing data */
-    bool nanoPrecision;
-    CckInterfaceInfo intInfo;
+	pcap_t *readerHandle;	/* libpcap handle for reading data */
+	pcap_t *writerHandle;	/* libpcap handle for writing data */
+	bool nanoPrecision;
+	CckInterfaceInfo intInfo;
 } TTransportData_pcap_ethernet;
 
 typedef struct {
-	char interface [IFNAMSIZ];
-	CckTransportAddressList *multicastStreams;
-	uint16_t etherType;
-	uint16_t vlanNumber;
+	TTransportConfig_ethernet_common common;
 } TTransportConfig_pcap_ethernet;
 
 /* private initialisation, method assignment etc. */

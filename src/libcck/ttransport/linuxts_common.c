@@ -506,14 +506,14 @@ finalise:
 }
 
 void
-getLinuxTxTimestamp(TTransport *transport, TTransportMessage *txMessage) {
+getLinuxTxTimestamp(TTransport *transport, TTransportMessage *txMessage, TTransportConfig_linuxts_common *cConfig) {
 	char buf[txMessage->capacity];
 	TTransportMessage tsMessage;
 	ssize_t ret;
 	fd_set tmpSet;
-	struct timeval timeOut = {0,1500};
+	struct timeval timeOut = {0, cConfig->txTimeout};
 	int i = 0;
-	int backoff = 10;
+	int backoff = cConfig->txBackoff;
 	int fd = transport->myFd.fd;
 
 	/* prepare the temporary message to receive TX packet's payload */
@@ -546,8 +546,8 @@ getLinuxTxTimestamp(TTransport *transport, TTransportMessage *txMessage) {
 
 	/* we're desperate here, aren't we... */
 
-	for(i = 0; i <= LATE_TXTIMESTAMP_RETRIES; i++) {
-	    CCK_DBG(THIS_COMPONENT"getTxTimestamp(%s) backoff: %d\n", transport->name, backoff);
+	for(i = 0; i < cConfig->txRetries; i++) {
+	    CCK_DBG(THIS_COMPONENT"getTxTimestamp(%s) retry %d of %d, backoff: %d us\n", transport->name, i+1, cConfig->txRetries, backoff);
 	    ret = transport->receiveMessage(transport, &tsMessage);
 	    if(ret > 0) {
 		CCK_DBG(THIS_COMPONENT"getTxTimestamp(%s): delayed TX timestamp caught after %d retries\n",
@@ -555,7 +555,7 @@ getLinuxTxTimestamp(TTransport *transport, TTransportMessage *txMessage) {
 		goto gameover;
 	    }
 	    usleep(backoff);
-	    backoff *= 2;
+	    backoff *= cConfig->txMultiplier;
 	}
 
 	CCK_DBG(THIS_COMPONENT"getTxTimestamp(%s): NIC failed to deliver TX timestamp in time\n", transport->name);
@@ -634,4 +634,19 @@ getInfoLine_linuxts(const TTransport *transport, const CckInterfaceInfo *info, c
 		    TT_MC(transport->config.flags) ? "multicast" : "unicast");
 
 	return buf;
+}
+
+void
+_initTTransportConfig_linuxts_common(TTransportConfig_linuxts_common *myConfig, const int family)
+{
+	myConfig->txBackoff = LINUXTS_TXTIMESTAMP_BACKOFF_US;
+	myConfig->txTimeout = LINUXTS_TXTIMESTAMP_TIMEOUT_US;
+	myConfig->txRetries = LINUXTS_TXTIMESTAMP_RETRIES;
+	myConfig->txMultiplier = LINUXTS_TXTIMESTAMP_BACKOFF_MULTIPLIER;
+}
+
+void
+_freeTTransportConfig_linuxts_common(TTransportConfig_linuxts_common *myConfig)
+{
+
 }

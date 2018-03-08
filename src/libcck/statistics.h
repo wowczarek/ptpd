@@ -262,9 +262,6 @@ void freeDoubleMovingStatFilter(DoubleMovingStatFilter** container);
 void resetDoubleMovingStatFilter(DoubleMovingStatFilter* container);
 bool feedDoubleMovingStatFilter(DoubleMovingStatFilter* container, double sample);
 
-void intStatsTest(int32_t sample);
-void doubleStatsTest(double sample);
-
 double getPeircesCriterion(int numObservations, int numDoubtful);
 
 bool isIntPeircesOutlier(IntMovingStdDev *container, int32_t sample, double threshold);

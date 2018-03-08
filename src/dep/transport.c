@@ -133,6 +133,13 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 
 #ifdef CCK_BUILD_TTRANSPORT_LINUXTS
 	    case TT_TYPE_LINUXTS_UDPV4:
+		{
+		    CCK_GET_PCONFIG(TTransport, linuxts_udpv4, config, pConfig);
+		    pConfig->linuxts.txBackoff = global->linuxts_txBackoff;
+		    pConfig->linuxts.txTimeout = global->linuxts_txTimeout;
+		    pConfig->linuxts.txRetries = global->linuxts_txRetries;
+		    pConfig->linuxts.txMultiplier = global->linuxts_txMultiplier;
+		}
 #endif
 
 #ifdef CCK_BUILD_TTRANSPORT_DLPI
@@ -144,7 +151,7 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 #endif
 	    case TT_TYPE_SOCKET_UDPV4:
 		{
-		    CCK_GET_PCONFIG(TTransport, socket_udpv4, config, pConfig);
+		    CCK_GET_PCONFIG(TTransport, udp_common, config, pConfig);
 
 		    strncpy(pConfig->interface, global->ifName, IFNAMSIZ);
 
@@ -180,6 +187,13 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 
 #ifdef CCK_BUILD_TTRANSPORT_LINUXTS
 	    case TT_TYPE_LINUXTS_UDPV6:
+		{
+		    CCK_GET_PCONFIG(TTransport, linuxts_udpv4, config, pConfig);
+		    pConfig->linuxts.txBackoff = global->linuxts_txBackoff;
+		    pConfig->linuxts.txTimeout = global->linuxts_txTimeout;
+		    pConfig->linuxts.txRetries = global->linuxts_txRetries;
+		    pConfig->linuxts.txMultiplier = global->linuxts_txMultiplier;
+		}
 #endif
 
 #ifdef CCK_BUILD_TTRANSPORT_DLPI
@@ -191,7 +205,7 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 #endif
 	    case TT_TYPE_SOCKET_UDPV6:
 		{
-		    CCK_GET_PCONFIG(TTransport, socket_udpv6, config, pConfig);
+		    CCK_GET_PCONFIG(TTransport, udp_common, config, pConfig);
 
 		    strncpy(pConfig->interface, global->ifName, IFNAMSIZ);
 
@@ -234,7 +248,7 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 #ifdef CCK_BUILD_TTRANSPORT_SOCK_RAWETH
 	    case TT_TYPE_SOCKET_RAWETH:
 		{
-		    CCK_GET_PCONFIG(TTransport, socket_raweth, config, pConfig);
+		    CCK_GET_PCONFIG(TTransport, ethernet_common, config, pConfig);
 
 		    strncpy(pConfig->interface, global->ifName, IFNAMSIZ);
 
@@ -262,7 +276,7 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 #ifdef CCK_BUILD_TTRANSPORT_PCAP
 	    case TT_TYPE_PCAP_ETHERNET:
 		{
-		    CCK_GET_PCONFIG(TTransport, pcap_ethernet, config, pConfig);
+		    CCK_GET_PCONFIG(TTransport, ethernet_common, config, pConfig);
 
 		    strncpy(pConfig->interface, global->ifName, IFNAMSIZ);
 
@@ -289,8 +303,17 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 
 #ifdef CCK_BUILD_TTRANSPORT_LINUXTS
 	    case TT_TYPE_LINUXTS_RAWETH:
+
 		{
-		    CCK_GET_PCONFIG(TTransport, linuxts_raweth, config, pConfig);
+		    CCK_GET_PCONFIG(TTransport, linuxts_udpv4, config, pConfig);
+		    pConfig->linuxts.txBackoff = global->linuxts_txBackoff;
+		    pConfig->linuxts.txTimeout = global->linuxts_txTimeout;
+		    pConfig->linuxts.txRetries = global->linuxts_txRetries;
+		    pConfig->linuxts.txMultiplier = global->linuxts_txMultiplier;
+		}
+
+		{
+		    CCK_GET_PCONFIG(TTransport, ethernet_common, config, pConfig);
 
 		    strncpy(pConfig->interface, global->ifName, IFNAMSIZ);
 

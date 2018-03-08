@@ -89,13 +89,15 @@ _probeTTransport_linuxts_raweth(const char *path, const int flags) {
 void
 _initTTransportConfig_linuxts_raweth(TTransportConfig_linuxts_raweth *myConfig, const int family)
 {
-    myConfig->multicastStreams = createCckTransportAddressList(family, "tmp");
+    _initTTransportConfig_ethernet_common(&myConfig->common, family);
+    _initTTransportConfig_linuxts_common(&myConfig->linuxts, family);
 }
 
 void
 _freeTTransportConfig_linuxts_raweth(TTransportConfig_linuxts_raweth *myConfig)
 {
-    freeCckTransportAddressList(&myConfig->multicastStreams);
+    _freeTTransportConfig_ethernet_common(&myConfig->common);
+    _freeTTransportConfig_linuxts_common(&myConfig->linuxts);
 }
 
 static int
@@ -115,9 +117,9 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     CCK_GET_PCONFIG(TTransport, linuxts_raweth, self, myConfig);
     CCK_GET_PCONFIG(TTransport, linuxts_raweth, config, yourConfig);
 
-    if(!getInterfaceInfo(&myData->intInfo, yourConfig->interface, self->family, NULL, false)) {
+    if(!getInterfaceInfo(&myData->intInfo, yourConfig->common.interface, self->family, NULL, false)) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): Interface %s not usable, cannot continue\n",
-		self->name, yourConfig->interface);
+		self->name, yourConfig->common.interface);
 	return -1;
     }
 
@@ -130,14 +132,14 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 	copyTTransportConfig(&self->config, config);
 
 	/* make a duplicate of the address list */
-	if(myConfig->multicastStreams) {
-	    CckTransportAddressList *duplicate = duplicateCckTransportAddressList(myConfig->multicastStreams);
-	    myConfig->multicastStreams = duplicate;
+	if(myConfig->common.multicastStreams) {
+	    CckTransportAddressList *duplicate = duplicateCckTransportAddressList(myConfig->common.multicastStreams);
+	    myConfig->common.multicastStreams = duplicate;
 	}
     }
 
     /* open the socket */
-    *fd = socket(PF_PACKET, SOCK_RAW, htons(myConfig->etherType));
+    *fd = socket(PF_PACKET, SOCK_RAW, htons(myConfig->common.etherType));
 
     if(*fd < 0) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): Failed to open socket!", self->name);
@@ -152,10 +154,10 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     }
 #if 0
 #ifdef SO_BINDTODEVICE
-	ret = setsockopt(*fd, SOL_SOCKET, SO_BINDTODEVICE, myConfig->interface, strlen(myConfig->interface));
+	ret = setsockopt(*fd, SOL_SOCKET, SO_BINDTODEVICE, myConfig->common.interface, strlen(myConfig->common.interface));
 	if(ret < 0) {
 	    CCK_PERROR(THIS_COMPONENT"tTransport_init(%s): Failed to call SO_BINDTODEVICE on %s",
-			self->name, myConfig->interface);
+			self->name, myConfig->common.interface);
 	}
 #endif /* SO_BINDTODEVICE */
 #endif
@@ -165,14 +167,14 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     memset(&bindAddr, 0, sizeof(bindAddr));
     memcpy(&bindAddr.sll_addr, &self->ownAddress.addr.ether, ETHER_ADDR_LEN);
     bindAddr.sll_family = AF_PACKET;
-    bindAddr.sll_protocol = htons(myConfig->etherType);
+    bindAddr.sll_protocol = htons(myConfig->common.etherType);
     bindAddr.sll_halen = ETHER_ADDR_LEN;
 
-    ret = getInterfaceIndex(myConfig->interface);
+    ret = getInterfaceIndex(myConfig->common.interface);
 
     if(ret < 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): Failed to retrieve interface infex. Cannot bind to inteface.\n",
-				myConfig->interface);
+				myConfig->common.interface);
 	goto cleanup;
     }
 
@@ -185,11 +187,11 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if (ret < 0) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): Failed to bind raw socket on %s (%s, etherType 0x%04x)",
-	    self->name, myConfig->interface,strAddr, myConfig->etherType);
+	    self->name, myConfig->common.interface,strAddr, myConfig->common.etherType);
 	goto cleanup;
     } else {
 	CCK_DBG(THIS_COMPONENT"tTransportInit(%s): Bound raw socket on %s (%s, etherType 0x%04x)\n",
-	    self->name, myConfig->interface,strAddr, myConfig->etherType);
+	    self->name, myConfig->common.interface,strAddr, myConfig->common.etherType);
     }
 /*
 	mreq.mr_ifindex = bindAddr.sll_ifindex;
@@ -215,18 +217,18 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 */
 
     /* interface flags */
-    ret = setInterfaceFlags(myConfig->interface, IFF_PROMISC);
+    ret = setInterfaceFlags(myConfig->common.interface, IFF_PROMISC);
     if(ret < 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): Could not set interface flags (IFF_PROMISC | IFF_ALLMULTI)\n",
 		self->name);
 	goto cleanup;
     }
 
-    getLinuxInterfaceInfo(&myData->lintInfo, myConfig->interface);
+    getLinuxInterfaceInfo(&myData->lintInfo, myConfig->common.interface);
 
     /* try enabling timestamping if we need it */
     if(self->config.timestamping) {
-	if(!initTimestamping_linuxts_common(self, &myData->tsConfig, &myData->lintInfo, myConfig->interface, false)) {
+	if(!initTimestamping_linuxts_common(self, &myData->tsConfig, &myData->lintInfo, myConfig->common.interface, false)) {
 	    CCK_ERROR(THIS_COMPONENT"tTransport_init(%s): Failed to initialise Linux timestamping!\n",
 		self->name);
 		goto cleanup;
@@ -254,7 +256,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     self->_init = true;
 
     CCK_NOTICE(THIS_COMPONENT"Transport '%s' (%s) started\n",
-		self->name, myConfig->interface);
+		self->name, myConfig->common.interface);
 
     return 1;
 
@@ -278,17 +280,17 @@ tTransport_shutdown(TTransport *self) {
     /* leave multicast groups if we have them */
     if(self->config.flags | TT_CAPS_MCAST) {
 
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
-		joinMulticast_ethernet(mcAddr, myConfig->interface, false);
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
+		joinMulticast_ethernet(mcAddr, myConfig->common.interface, false);
 	    }
-	    freeCckTransportAddressList(&myConfig->multicastStreams);
+	    freeCckTransportAddressList(&myConfig->common.multicastStreams);
 	}
 
     }
 
-    clearInterfaceFlags(myConfig->interface, IFF_PROMISC | IFF_ALLMULTI);
+    clearInterfaceFlags(myConfig->common.interface, IFF_PROMISC | IFF_ALLMULTI);
 
     /* close the socket */
     if(self->myFd.fd > -1) {
@@ -298,7 +300,7 @@ tTransport_shutdown(TTransport *self) {
     self->myFd.fd = -1;
 
     if(self->_init) {
-	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->interface);
+	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->common.interface);
     }
 
     /* run any vendor-specific shutdown code */
@@ -327,7 +329,7 @@ isThisMe(TTransport *self, const char* search)
 	}
 
 	/* are we looking for my interface? */
-	if(!strncmp(search, myConfig->interface, IFNAMSIZ)) {
+	if(!strncmp(search, myConfig->common.interface, IFNAMSIZ)) {
 		return true;
 	}
 
@@ -395,7 +397,7 @@ sendMessage(TTransport *self, TTransportMessage *message) {
     memcpy(buf + self->headerLen, message->data, message->length);
     memcpy(&ethh->ether_dhost, &message->destination->addr.ether, TT_ADDRLEN_ETHERNET);
     memcpy(&ethh->ether_shost, &self->ownAddress.addr.ether, TT_ADDRLEN_ETHERNET);
-    ethh->ether_type = htons(myConfig->etherType);
+    ethh->ether_type = htons(myConfig->common.etherType);
 
     mc = self->tools->isMulticast(message->destination);
 
@@ -405,7 +407,7 @@ sendMessage(TTransport *self, TTransportMessage *message) {
     memcpy(&dad.sll_addr, &message->destination->addr.ether, ETHER_ADDR_LEN);
     dad.sll_family = AF_PACKET;
     dad.sll_halen = ETHER_ADDR_LEN;
-    dad.sll_ifindex = if_nametoindex(myConfig->interface);
+    dad.sll_ifindex = if_nametoindex(myConfig->common.interface);
 
     /* run user callback before sending */
     if(self->callbacks.preTx) {
@@ -459,7 +461,7 @@ sendMessage(TTransport *self, TTransportMessage *message) {
 
     if(self->config.timestamping) {
 
-	getLinuxTxTimestamp(self, message);
+	getLinuxTxTimestamp(self, message, &myConfig->linuxts);
 
     }
 
@@ -524,8 +526,12 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
     if(ret <= 0) {
 
 	if(errno == ENOMSG) {
-	    CCK_DBG(THIS_COMPONENT"receiveMessage(%s): Flushed errqueue\n", self->name);
-	    recvmsg(self->myFd.fd, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
+	    /* empty the errqueue */
+	    int txFlushed = 0;
+	    while( recvmsg(self->myFd.fd, &msg, MSG_ERRQUEUE | MSG_DONTWAIT) >= 0) {
+		txFlushed++;
+		CCK_DBG(THIS_COMPONENT"receiveMessage(%s): Flushing errqueue, message #%d\n", self->name, txFlushed);
+	    }
 	    /* drop the next regular message as well - it can be severely delayed... */
 	    recvmsg(self->myFd.fd, &msg, MSG_DONTWAIT);
 	    return 0;
@@ -619,8 +625,8 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
 	tmpstr(strAddrt, self->tools->strLen);
 	tmpstr(strAddrf, self->tools->strLen);
 	CCK_DBG(THIS_COMPONENT"receiveMesage(%s): received %d bytes from %s to %s\n",
-		self->name, ret, self->tools->toString(strAddrf, strAddrf_len, &message->from),
-				self->tools->toString(strAddrt, strAddrt_len, &message->to));
+		self->name, ret, txFlags ? "self" : self->tools->toString(strAddrf, strAddrf_len, &message->from),
+				txFlags ? "self via error queue" : self->tools->toString(strAddrt, strAddrt_len, &message->to));
 }
 #endif
 
@@ -639,11 +645,11 @@ getClockDriver(TTransport *self) {
 static int
 monitor(TTransport *self, const int interval, const bool quiet) {
 
-    CCK_GET_PCONFIG(TTransport, linuxts_udpv4, self, myConfig);
-    CCK_GET_PDATA(TTransport, linuxts_udpv4, self, myData);
+    CCK_GET_PCONFIG(TTransport, linuxts_raweth, self, myConfig);
+    CCK_GET_PDATA(TTransport, linuxts_raweth, self, myData);
 
     if(!myData->intInfo.valid) {
-	getInterfaceInfo(&myData->intInfo, myConfig->interface,
+	getInterfaceInfo(&myData->intInfo, myConfig->common.interface,
 	self->family, NULL, CCK_QUIET);
     }
 
@@ -660,7 +666,7 @@ monitor(TTransport *self, const int interval, const bool quiet) {
     }
 
     if(!myData->lintInfo.valid) {
-	getLinuxInterfaceInfo(&myData->lintInfo, myConfig->interface);
+	getLinuxInterfaceInfo(&myData->lintInfo, myConfig->common.interface);
     };
 
     int lres = monitorLinuxInterface(&myData->lintInfo, quiet);
@@ -680,7 +686,7 @@ monitor(TTransport *self, const int interval, const bool quiet) {
 	/* this is returned when bond slave count has changed - not passed upwards */
 	if(lres & CCK_INTINFO_CHANGE) {
 	    if(!initTimestamping_linuxts_common(self, &myData->tsConfig,
-			    &myData->lintInfo, myConfig->interface, false)) {
+			    &myData->lintInfo, myConfig->common.interface, false)) {
 		CCK_QERROR(THIS_COMPONENT"monitor('%s'): Failed to re-initialise Linux timestamping!\n",
 		    self->name);
 		myData->intInfo.status = CCK_INTINFO_FAULT;
@@ -711,10 +717,10 @@ refresh(TTransport *self) {
     /* join multicast groups if we have them */
     if(self->config.flags | TT_CAPS_MCAST) {
 
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
-		joinMulticast_ethernet(mcAddr, myConfig->interface, true);
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
+		joinMulticast_ethernet(mcAddr, myConfig->common.interface, true);
 	    }
 	}
 

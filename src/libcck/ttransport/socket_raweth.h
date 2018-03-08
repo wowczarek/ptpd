@@ -45,10 +45,7 @@ typedef struct {
 } TTransportData_socket_raweth;
 
 typedef struct {
-	char interface [IFNAMSIZ];
-	CckTransportAddressList *multicastStreams;
-	uint16_t etherType;
-	uint16_t vlanNumber;
+	TTransportConfig_ethernet_common common;
 } TTransportConfig_socket_raweth;
 
 /* private initialisation, method assignment etc. */

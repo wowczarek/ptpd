@@ -46,10 +46,8 @@ typedef struct {
 } TTransportData_linuxts_raweth;
 
 typedef struct {
-	char interface [IFNAMSIZ];
-	CckTransportAddressList *multicastStreams;
-	uint16_t etherType;
-	uint16_t vlanNumber;
+	TTransportConfig_ethernet_common common;
+	TTransportConfig_linuxts_common linuxts;
 } TTransportConfig_linuxts_raweth;
 
 /* private initialisation, method assignment etc. */

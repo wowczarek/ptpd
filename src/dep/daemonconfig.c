@@ -1474,8 +1474,6 @@ parseConfig ( int opCode, void *opArg, dictionary* dict, GlobalConfig *global )
 				    "unicast",
 				    "ptpengine:unicast_destinations");
 
-
-
 	/* unicast master without signaling - must specify unicast destinations */
 	CONFIG_KEY_CONDITIONAL_DEPENDENCY("ptpengine:transport_mode",
 				     global->clockQuality.clockClass <= 127 &&
@@ -2629,7 +2627,27 @@ parseConfig ( int opCode, void *opArg, dictionary* dict, GlobalConfig *global )
 	CONFIG_KEY_DEPENDENCY("ntpengine:control:enabled", "ntpengine:key_id");
 	CONFIG_KEY_DEPENDENCY("ntpengine:control:enabled", "ntpengine:key");
 
+/* ======= libcck section ======== */
 
+#ifdef CCK_BUILD_TTRANSPORT_LINUXTS
+
+	parseResult &= configMapInt(opCode, opArg, dict, target, "libcck:linuxts_tx_backoff",
+		PTPD_RESTART_NETWORK, INTTYPE_INT, &global->linuxts_txBackoff, global->linuxts_txBackoff,
+	"Linux PHC delayed transmit timestamp first retry delay (microseconds).",RANGECHECK_RANGE,0,100000);
+
+	parseResult &= configMapInt(opCode, opArg, dict, target, "libcck:linuxts_tx_timeout",
+		PTPD_RESTART_NETWORK, INTTYPE_INT, &global->linuxts_txTimeout, global->linuxts_txTimeout,
+	"Linux PHC transmit timestamp timeout (microseconds).",RANGECHECK_RANGE,1,100000);
+
+	parseResult &= configMapInt(opCode, opArg, dict, target, "libcck:linuxts_tx_retries",
+		PTPD_RESTART_NETWORK, INTTYPE_U8, &global->linuxts_txRetries, global->linuxts_txRetries,
+	"Linux PHC delayed transmit timestamp maximum retries",RANGECHECK_RANGE,0,1000);
+
+	parseResult &= configMapDouble(opCode, opArg, dict, target, "libcck:linuxts_tx_multiplier",
+		PTPD_RESTART_NETWORK, &global->linuxts_txMultiplier, global->linuxts_txMultiplier,
+	"Linux PHC delayed transmit timestamp retry delay multiplier.",RANGECHECK_RANGE,1.0,10.0);
+
+#endif
 
 /* ============== END CONFIG MAPPINGS, TRIGGERS AND DEPENDENCIES =========== */
 

@@ -146,6 +146,12 @@ memset(name, 0, name ## _len);
     } \
     counter_##id++;
 
+#if defined(__FILE__) && defined(__LINE__)
+#define CCK_MARKER(msg) CCK_INFO("Marker: %s: %s:%d\n", msg, __FILE__, __LINE__)
+#else
+#define CCK_MARKER(msg) CCK_INFO("Marker: %s\n", msg)
+#endif
+
 /* dump LibCCK version information */
 void cckVersion();
 

@@ -95,13 +95,13 @@ _probeTTransport_pcap_ethernet(const char *path, const int flags) {
 void
 _initTTransportConfig_pcap_ethernet(TTransportConfig_pcap_ethernet *myConfig, const int family)
 {
-    myConfig->multicastStreams = createCckTransportAddressList(family, "tmp");
+    _initTTransportConfig_ethernet_common(&myConfig->common, family);
 }
 
 void
 _freeTTransportConfig_pcap_ethernet(TTransportConfig_pcap_ethernet *myConfig)
 {
-    freeCckTransportAddressList(&myConfig->multicastStreams);
+    _freeTTransportConfig_ethernet_common(&myConfig->common);
 }
 
 static int
@@ -118,9 +118,9 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     CCK_GET_PCONFIG(TTransport, pcap_ethernet, self, myConfig);
     CCK_GET_PCONFIG(TTransport, pcap_ethernet, config, yourConfig);
 
-    if(!getInterfaceInfo(&myData->intInfo, yourConfig->interface, self->family, NULL, false)) {
+    if(!getInterfaceInfo(&myData->intInfo, yourConfig->common.interface, self->family, NULL, false)) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): Interface %s not usable, cannot continue\n",
-		self->name, yourConfig->interface);
+		self->name, yourConfig->common.interface);
 	return -1;
     }
 
@@ -137,9 +137,9 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 	copyTTransportConfig(&self->config, config);
 
 	/* make a duplicate of the address list */
-	if(myConfig->multicastStreams) {
-	    CckTransportAddressList *duplicate = duplicateCckTransportAddressList(myConfig->multicastStreams);
-	    myConfig->multicastStreams = duplicate;
+	if(myConfig->common.multicastStreams) {
+	    CckTransportAddressList *duplicate = duplicateCckTransportAddressList(myConfig->common.multicastStreams);
+	    myConfig->common.multicastStreams = duplicate;
 	}
     }
 
@@ -151,7 +151,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if(!strlen(filterExpr)) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): could not build PCAP filter expression for %s\n",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	return -1;
     }
 
@@ -167,11 +167,11 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     /* set up PCAP writer */
 
-    myData->writerHandle = pcap_open_live(myConfig->interface, self->inputBufferSize + self->headerLen,
+    myData->writerHandle = pcap_open_live(myConfig->common.interface, self->inputBufferSize + self->headerLen,
 					0, PCAP_TIMEOUT, errbuf);
     if(myData->writerHandle == NULL) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): failed to open PCAP writer device on %s",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	return -1;
     }
 
@@ -179,13 +179,13 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     if(pcap_compile(myData->writerHandle, &program, 
 	"ether src 00:00:00:00:00:00 and ether dst 00:00:00:00:00:00", 1, PCAP_NETMASK_UNKNOWN) < 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): writer: could not compile PCAP filter expression for %s:%s \n",
-	self->name, myConfig->interface, pcap_geterr(myData->writerHandle));
+	self->name, myConfig->common.interface, pcap_geterr(myData->writerHandle));
 	goto cleanup;
     }
 
     if(pcap_setfilter(myData->writerHandle, &program) < 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): writer: could not set PCAP filter for %s:%s \n",
-	self->name, myConfig->interface, pcap_geterr(myData->writerHandle));
+	self->name, myConfig->common.interface, pcap_geterr(myData->writerHandle));
 	goto cleanup;
     }
 
@@ -194,7 +194,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     /* join Ethernet multicast, use promiscuous mode if failed */
     if(!self->refresh(self)) {
 	CCK_DBG(THIS_COMPONENT"tTransportInit(%s):could not add Ethernet multicast membership, using promiscuous mode\n",
-	    self->name, myConfig->interface);
+	    self->name, myConfig->common.interface);
 	promisc = 1;
     }
 
@@ -202,11 +202,11 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
 #ifdef PCAP_TSTAMP_PRECISION_NANO /* use the elaborate PCAP activation to set ns timestamp precision */
 
-    myData->readerHandle = pcap_create(myConfig->interface, errbuf);
+    myData->readerHandle = pcap_create(myConfig->common.interface, errbuf);
 
     if(myData->readerHandle == NULL) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): failed to open PCAP reader device on %s",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	goto cleanup;
     }
 
@@ -219,24 +219,24 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if (pcap_set_tstamp_precision(myData->readerHandle, PCAP_TSTAMP_PRECISION_NANO) == 0) {
 	CCK_DBG(THIS_COMPONENT"tTransportInit(%s): using PCAP_TSTAMP_PRECISION_NANO on %s\n",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	myData->nanoPrecision = true;
     }
 
     if(pcap_activate(myData->readerHandle) != 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): reader: could not activate PCAP device for %s :%s \n",
-	self->name, myConfig->interface, pcap_geterr(myData->readerHandle));
+	self->name, myConfig->common.interface, pcap_geterr(myData->readerHandle));
 	goto cleanup;
     }
 
 #else /* use pcap_open_live */
 
-    myData->readerHandle = pcap_open_live(myConfig->interface, self->inputBufferSize + self->headerLen,
+    myData->readerHandle = pcap_open_live(myConfig->common.interface, self->inputBufferSize + self->headerLen,
 					promisc, PCAP_TIMEOUT, errbuf);
 
     if(myData->readerHandle == NULL) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): failed to open PCAP reader device on %s",
-	self->name, myConfig->interface);
+	self->name, myConfig->common.interface);
 	return -1;
     }
 
@@ -244,13 +244,13 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if(pcap_compile(myData->readerHandle, &program, filterExpr, 1, PCAP_NETMASK_UNKNOWN) < 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): reader: could not compile PCAP filter expression for %s: %s \n",
-	self->name, myConfig->interface, pcap_geterr(myData->readerHandle));
+	self->name, myConfig->common.interface, pcap_geterr(myData->readerHandle));
 	goto cleanup;
     }
 
     if(pcap_setfilter(myData->readerHandle, &program) < 0) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): reader: could not set PCAP filter for %s: %s \n",
-	self->name, myConfig->interface, pcap_geterr(myData->readerHandle));
+	self->name, myConfig->common.interface, pcap_geterr(myData->readerHandle));
 	goto cleanup;
     }
 
@@ -282,7 +282,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
 
     CCK_NOTICE(THIS_COMPONENT"Transport '%s' (%s) started\n",
-		self->name, myConfig->interface);
+		self->name, myConfig->common.interface);
 
     return 1;
 
@@ -305,10 +305,10 @@ tTransport_shutdown(TTransport *self) {
     }
 
     /* free multicast group list and leave groups if we have them */
-    if(myConfig->multicastStreams) {
+    if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
-		joinMulticast_ethernet(mcAddr, myConfig->interface, false);
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
+		joinMulticast_ethernet(mcAddr, myConfig->common.interface, false);
 	    }
     }
 
@@ -324,7 +324,7 @@ tTransport_shutdown(TTransport *self) {
     self->myFd.fd = -1;
 
     if(self->_init) {
-	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->interface);
+	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->common.interface);
     }
 
     /* run any vendor-specific shutdown code */
@@ -353,7 +353,7 @@ isThisMe(TTransport *self, const char* search)
 	}
 
 	/* are we looking for my interface? */
-	if(!strncmp(search, myConfig->interface, IFNAMSIZ)) {
+	if(!strncmp(search, myConfig->common.interface, IFNAMSIZ)) {
 		return true;
 	}
 
@@ -422,7 +422,7 @@ sendMessage(TTransport *self, TTransportMessage *message) {
     memcpy(buf + self->headerLen, message->data, message->length);
     memcpy(&ethh->ether_dhost, &message->destination->addr.ether, TT_ADDRLEN_ETHERNET);
     memcpy(&ethh->ether_shost, &self->ownAddress.addr.ether, TT_ADDRLEN_ETHERNET);
-    ethh->ether_type = htons(myConfig->etherType);
+    ethh->ether_type = htons(myConfig->common.etherType);
 
     mc = self->tools->isMulticast(message->destination);
 
@@ -610,7 +610,7 @@ monitor(TTransport *self, const int interval, const bool quiet) {
     CCK_GET_PDATA(TTransport, pcap_ethernet, self, myData);
 
     if(!myData->intInfo.valid) {
-	getInterfaceInfo(&myData->intInfo, myConfig->interface,
+	getInterfaceInfo(&myData->intInfo, myConfig->common.interface,
 	self->family, NULL, CCK_QUIET);
     }
 
@@ -628,10 +628,10 @@ refresh(TTransport *self) {
     /* join multicast groups if we have them */
     if(self->config.flags | TT_CAPS_MCAST) {
 
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
-		ret &= joinMulticast_ethernet(mcAddr, myConfig->interface, true);
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
+		ret &= joinMulticast_ethernet(mcAddr, myConfig->common.interface, true);
 	    }
 	}
 
@@ -657,7 +657,7 @@ createFilterExpr(TTransport *self, char *buf, int size) {
     CCK_GET_PCONFIG(TTransport, pcap_ethernet, self, myConfig);
 
     /* ethertype */
-    ret = snprintf(marker, left, "ether proto 0x%04x and (", myConfig->etherType);
+    ret = snprintf(marker, left, "ether proto 0x%04x and (", myConfig->common.etherType);
     if(!maintainStrBuf(ret, &marker, &left)) {
 	return buf;
     }
@@ -670,9 +670,9 @@ createFilterExpr(TTransport *self, char *buf, int size) {
 
     /* build multicast address list */
     if(self->config.flags | TT_CAPS_MCAST) {
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
 		ret = snprintf(marker, left, " or ether dst %s", self->tools->toString(strAddr, sizeof(strAddr), mcAddr));
 		if(!maintainStrBuf(ret, &marker, &left)) {
 		    return buf;

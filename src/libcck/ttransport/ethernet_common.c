@@ -25,38 +25,29 @@
  */
 
 /**
- * @file   socket_udpv4.h
+ * @file   ethernet_common.c
  * @date   Sat Jan 9 16:14:10 2016
  *
- * @brief  structure definitions for the BSD Socket based IPv4 timestamping transport
+ * @brief  common code for Ethernet transports
  *
  */
 
-#ifndef CCK_TTRANSPORT_SOCKET_UDPV4_H_
-#define CCK_TTRANSPORT_SOCKET_UDPV4_H_
+#include <libcck/cck.h>
+#include <libcck/cck_logger.h>
 
 #include <libcck/ttransport.h>
-#include <libcck/net_utils.h>
-#include <libcck/transport_address.h>
+#include <libcck/ttransport/ethernet_common.h>
 
-typedef struct {
-	TTsocketTimestampConfig tsConfig;
-	CckInterfaceInfo intInfo;
-} TTransportData_socket_udpv4;
+#define THIS_COMPONENT "ttransport.ethernet_common: "
 
-/* private initialisation, method assignment etc. */
-bool _setupTTransport_socket_udpv4(TTransport *self);
+void
+_initTTransportConfig_ethernet_common(TTransportConfig_ethernet_common *myConfig, const int family)
+{
+    myConfig->multicastStreams = createCckTransportAddressList(family, "tmp");
+}
 
-/* probe if interface @path supports @flags */
-bool _probeTTransport_socket_udpv4(const char *path, const int flags);
-
-/* transport configuration - any extra private settings can be implemented here */
-typedef struct {
-	TTransportConfig_udp_common common;
-} TTransportConfig_socket_udpv4;
-
-/* initialisation / destruction of any extra data in our private config object */
-void _initTTransportConfig_socket_udpv4(TTransportConfig_socket_udpv4 *myConfig, const int family);
-void _freeTTransportConfig_socket_udpv4(TTransportConfig_socket_udpv4 *myConfig);
-
-#endif /* CCK_TTRANSPORT_SOCKET_UDPV4_H_ */
+void
+_freeTTransportConfig_ethernet_common(TTransportConfig_ethernet_common *myConfig)
+{
+    freeCckTransportAddressList(&myConfig->multicastStreams);
+}

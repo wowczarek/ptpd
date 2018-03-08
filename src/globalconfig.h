@@ -223,6 +223,13 @@ typedef struct {
 	int clockFaultTimeout;
 	Boolean lockClockDevice;
 
+#ifdef CCK_BUILD_TTRANSPORT_LINUXTS
+	int linuxts_txBackoff;
+	int linuxts_txTimeout;
+	uint8_t linuxts_txRetries;
+	double linuxts_txMultiplier;
+#endif
+
 	char productDescription[65];
 	char portDescription[65];
 

@@ -40,8 +40,12 @@
 #include <libcck/net_utils_linux.h>
 #include <libcck/transport_address.h>
 
-#define TT_MSGFLAGS_TXTIMESTAMP 0x80
-#define LATE_TXTIMESTAMP_RETRIES 6
+#define TT_MSGFLAGS_TXTIMESTAMP			0x80
+
+#define LINUXTS_TXTIMESTAMP_BACKOFF_US		10
+#define LINUXTS_TXTIMESTAMP_TIMEOUT_US		1500
+#define LINUXTS_TXTIMESTAMP_RETRIES		6
+#define LINUXTS_TXTIMESTAMP_BACKOFF_MULTIPLIER	2.0
 
 typedef struct {
     uint32_t swTsModes;
@@ -56,10 +60,21 @@ typedef struct {
     bool oneStep;
 } LinuxTsInfo;
 
+typedef struct {
+    int txBackoff;
+    int txTimeout;
+    uint8_t txRetries;
+    double txMultiplier;
+} TTransportConfig_linuxts_common;
+
+/* initialisation / destruction of any extra data in our private config object */
+void _initTTransportConfig_linuxts_common(TTransportConfig_linuxts_common *myConfig, const int family);
+void _freeTTransportConfig_linuxts_common(TTransportConfig_linuxts_common *myConfig);
+
 bool probeLinuxTs(const char *path, const int family, const int caps);
 void getLinuxTsInfo(LinuxTsInfo *output, const struct ethtool_ts_info *source, const char *ifName, const int family, const bool preferHw);
 ClockDriver * getLinuxClockDriver(const TTransport *transport, const LinuxInterfaceInfo *intInfo);
-void getLinuxTxTimestamp(TTransport *transport, TTransportMessage *txMessage);
+void getLinuxTxTimestamp(TTransport *transport, TTransportMessage *txMessage, TTransportConfig_linuxts_common *cConfig);
 bool initTimestamping_linuxts_common(TTransport *transport, TTsocketTimestampConfig *tsConfig, LinuxInterfaceInfo *intInfo, const char *ifName, const bool quiet);
 char* getStatusLine_linuxts(const TTransport *transport, const CckInterfaceInfo *info, const LinuxInterfaceInfo *linfo, char *buf, const size_t len);
 char* getInfoLine_linuxts(const TTransport *transport, const CckInterfaceInfo *info, const LinuxInterfaceInfo *linfo, char *buf, const size_t len);

@@ -82,6 +82,19 @@ _probeTTransport_socket_udpv6(const char *path, const int flags) {
 
 }
 
+void
+_initTTransportConfig_socket_udpv6(TTransportConfig_socket_udpv6 *myConfig, const int family)
+{
+    _initTTransportConfig_udp_common(&myConfig->common, family);
+}
+
+void
+_freeTTransportConfig_socket_udpv6(TTransportConfig_socket_udpv6 *myConfig)
+{
+    _freeTTransportConfig_udp_common(&myConfig->common);
+
+}
+
 static int
 tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSet) {
 
@@ -102,9 +115,9 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     CCK_GET_PCONFIG(TTransport, socket_udpv6, self, myConfig);
     CCK_GET_PCONFIG(TTransport, socket_udpv6, config, yourConfig);
 
-    if(!getInterfaceInfo(&myData->intInfo, yourConfig->interface, self->family, &yourConfig->sourceAddress, false)) {
+    if(!getInterfaceInfo(&myData->intInfo, yourConfig->common.interface, self->family, &yourConfig->common.sourceAddress, false)) {
 	CCK_ERROR(THIS_COMPONENT"tTransportInit(%s): Interface %s not usable, cannot continue\n",
-		self->name, yourConfig->interface);
+		self->name, yourConfig->common.interface);
 	return -1;
     }
 
@@ -121,15 +134,15 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 	copyTTransportConfig(&self->config, config);
 
 	/* make a duplicate of the address list */
-	if(myConfig->multicastStreams) {
-	    CckTransportAddressList *duplicate = duplicateCckTransportAddressList(myConfig->multicastStreams);
-	    myConfig->multicastStreams = duplicate;
+	if(myConfig->common.multicastStreams) {
+	    CckTransportAddressList *duplicate = duplicateCckTransportAddressList(myConfig->common.multicastStreams);
+	    myConfig->common.multicastStreams = duplicate;
 	}
     }
 
     /* set up ports */
-    setTransportAddressPort(&myConfig->sourceAddress, myConfig->listenPort);
-    setTransportAddressPort(&self->ownAddress, myConfig->listenPort);
+    setTransportAddressPort(&myConfig->common.sourceAddress, myConfig->common.listenPort);
+    setTransportAddressPort(&self->ownAddress, myConfig->common.listenPort);
 
     /* open the socket */
     *fd = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP);
@@ -148,7 +161,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
 #ifdef SO_NO_CHECK
     /* disable UDP checksums */
-    if(myConfig->disableChecksums) {
+    if(myConfig->common.disableChecksums) {
 
 	ret = setsockopt(*fd, SOL_SOCKET, SO_NO_CHECK, &val, valsize);
 
@@ -172,7 +185,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     }
 
     /* ...unless it is forced to bind to source */
-    if(myConfig->bindToAddress) {
+    if(myConfig->common.bindToAddress) {
 	bindToAddress = true;
     }
 
@@ -188,16 +201,16 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
     if(ret < 0) {
 	CCK_PERROR(THIS_COMPONENT"tTransportInit(%s): could not bind to %s:%s on %s",
-	self->name, strAddr, myConfig->listenPort, myConfig->interface);
+	self->name, strAddr, myConfig->common.listenPort, myConfig->common.interface);
 	goto cleanup;
     } else {
 	CCK_DBG(THIS_COMPONENT"tTransportInit(%s): successfully bound to  %s:%d on %s\n",
-	self->name, strAddr, myConfig->listenPort, myConfig->interface);
+	self->name, strAddr, myConfig->common.listenPort, myConfig->common.interface);
     }
 
 #ifdef SO_RCVBUF
     /* set receive buffer size if given */
-    if(myConfig->udpBufferSize) {
+    if(myConfig->common.udpBufferSize) {
 
 	uint32_t n = 0;
 	socklen_t nlen = sizeof(n);
@@ -210,15 +223,15 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 
 	CCK_DBG(THIS_COMPONENT"tTransportInit(%s): current rcvbuf %d, gso returned %d\n", self->name, n, ret);
 
-	if(n < myConfig->udpBufferSize) {
-	    ret = setsockopt(*fd, SOL_SOCKET, SO_RCVBUF, &myConfig->udpBufferSize, sizeof(myConfig->udpBufferSize));
+	if(n < myConfig->common.udpBufferSize) {
+	    ret = setsockopt(*fd, SOL_SOCKET, SO_RCVBUF, &myConfig->common.udpBufferSize, sizeof(myConfig->common.udpBufferSize));
 
 	    if(ret < 0) {
 		    CCK_DBG(THIS_COMPONENT"tTransportInit(%s): Failed to set rcvbuf to %d: %s\n",
-			self->name, myConfig->udpBufferSize, strerror(errno));
+			self->name, myConfig->common.udpBufferSize, strerror(errno));
 	    } else {
 		    CCK_DBG(THIS_COMPONENT"tTransportInit(%s): increased rcvbuf to  %d\n",
-			self->name, myConfig->udpBufferSize);
+			self->name, myConfig->common.udpBufferSize);
 	    }
 	}
     }
@@ -227,10 +240,10 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 #ifdef linux /* SO_BINDTODEVICE */
     /* multicast only */
     if( (self->config.flags & TT_CAPS_MCAST) && !(self->config.flags & TT_CAPS_UCAST)) {
-	ret = setsockopt(*fd, SOL_SOCKET, SO_BINDTODEVICE, myConfig->interface, strlen(myConfig->interface));
+	ret = setsockopt(*fd, SOL_SOCKET, SO_BINDTODEVICE, myConfig->common.interface, strlen(myConfig->common.interface));
 	if(ret < 0) {
 	    CCK_PERROR(THIS_COMPONENT"tTransport_init(%s): Failed to call SO_BINDTODEVICE on %s\n",
-			self->name, myConfig->interface);
+			self->name, myConfig->common.interface);
 	}
     }
 #endif /* linux, SO_BINDTODEVICE */
@@ -257,14 +270,14 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
 	    goto cleanup;
 	}
 
-	if(myConfig->multicastTtl) {
-	    setMulticastTtl(*fd, self->family, myConfig->multicastTtl);
+	if(myConfig->common.multicastTtl) {
+	    setMulticastTtl(*fd, self->family, myConfig->common.multicastTtl);
 	}
 
     }
 
-    if(myConfig->dscpValue) {
-	setSocketDscp(*fd, self->family, myConfig->dscpValue);
+    if(myConfig->common.dscpValue) {
+	setSocketDscp(*fd, self->family, myConfig->common.dscpValue);
     }
 
     /* try enabling timestamping if we need it */
@@ -295,7 +308,7 @@ tTransport_init(TTransport* self, const TTransportConfig *config, CckFdSet *fdSe
     self->_init = true;
 
     CCK_NOTICE(THIS_COMPONENT"Transport '%s' (%s) started\n",
-		self->name, myConfig->interface);
+		self->name, myConfig->common.interface);
 
     return 1;
 
@@ -319,10 +332,10 @@ tTransport_shutdown(TTransport *self) {
     /* leave multicast groups if we have them */
     if(self->config.flags | TT_CAPS_MCAST) {
 
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
-		joinMulticast_ipv6(self->myFd.fd, mcAddr, myConfig->interface, &self->ownAddress, false);
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
+		joinMulticast_ipv6(self->myFd.fd, mcAddr, myConfig->common.interface, &self->ownAddress, false);
 	    }
 	}
     }
@@ -335,7 +348,7 @@ tTransport_shutdown(TTransport *self) {
     self->myFd.fd = -1;
 
     if(self->_init) {
-	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->interface);
+	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->common.interface);
     }
 
     /* run any vendor-specific shutdown code */
@@ -364,7 +377,7 @@ isThisMe(TTransport *self, const char* search)
 	}
 
 	/* are we looking for my interface? */
-	if(!strncmp(search, myConfig->interface, IFNAMSIZ)) {
+	if(!strncmp(search, myConfig->common.interface, IFNAMSIZ)) {
 		return true;
 	}
 
@@ -748,11 +761,11 @@ monitor(TTransport *self, const int interval, const bool quiet) {
     CCK_GET_PDATA(TTransport, socket_udpv6, self, myData);
 
     if(!myData->intInfo.valid) {
-	getInterfaceInfo(&myData->intInfo, myConfig->interface,
-	self->family, &myConfig->sourceAddress, CCK_QUIET);
+	getInterfaceInfo(&myData->intInfo, myConfig->common.interface,
+	self->family, &myConfig->common.sourceAddress, CCK_QUIET);
     }
 
-    return monitorInterface(&myData->intInfo, &myConfig->sourceAddress, quiet);
+    return monitorInterface(&myData->intInfo, &myConfig->common.sourceAddress, quiet);
 
 }
 
@@ -764,10 +777,10 @@ refresh(TTransport *self) {
     /* join multicast groups if we have them */
     if(self->config.flags | TT_CAPS_MCAST) {
 
-	if(myConfig->multicastStreams) {
+	if(myConfig->common.multicastStreams) {
 	    CckTransportAddress *mcAddr;
-	    LL_FOREACH_DYNAMIC(myConfig->multicastStreams, mcAddr) {
-		joinMulticast_ipv6(self->myFd.fd, mcAddr, myConfig->interface, &self->ownAddress, true);
+	    LL_FOREACH_DYNAMIC(myConfig->common.multicastStreams, mcAddr) {
+		joinMulticast_ipv6(self->myFd.fd, mcAddr, myConfig->common.interface, &self->ownAddress, true);
 	    }
 	}
 

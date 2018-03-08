@@ -25,38 +25,32 @@
  */
 
 /**
- * @file   socket_udpv4.h
+ * @file   ttransport_ethernet_common.h
  * @date   Sat Jan 9 16:14:10 2016
  *
- * @brief  structure definitions for the BSD Socket based IPv4 timestamping transport
+ * @brief  common structure definitions for Ethernet-based transports
  *
  */
 
-#ifndef CCK_TTRANSPORT_SOCKET_UDPV4_H_
-#define CCK_TTRANSPORT_SOCKET_UDPV4_H_
+#ifndef CCK_TTRANSPORT_ETHERNET_COMMON_H_
+#define CCK_TTRANSPORT_ETHERNET_COMMON_H_
 
 #include <libcck/ttransport.h>
 #include <libcck/net_utils.h>
 #include <libcck/transport_address.h>
 
 typedef struct {
-	TTsocketTimestampConfig tsConfig;
-	CckInterfaceInfo intInfo;
-} TTransportData_socket_udpv4;
+	char interface [IFNAMSIZ];
+	CckTransportAddressList *multicastStreams;
+	uint16_t etherType;
+	uint16_t vlanNumber;
+} TTransportConfig_ethernet_common;
 
-/* private initialisation, method assignment etc. */
-bool _setupTTransport_socket_udpv4(TTransport *self);
+/*
+ * initialisation / destruction of any extra data in our private config object
+ * when we create a global config object outside of the transport
+ */
+void _initTTransportConfig_ethernet_common(TTransportConfig_ethernet_common *myConfig, const int family);
+void _freeTTransportConfig_ethernet_common(TTransportConfig_ethernet_common *myConfig);
 
-/* probe if interface @path supports @flags */
-bool _probeTTransport_socket_udpv4(const char *path, const int flags);
-
-/* transport configuration - any extra private settings can be implemented here */
-typedef struct {
-	TTransportConfig_udp_common common;
-} TTransportConfig_socket_udpv4;
-
-/* initialisation / destruction of any extra data in our private config object */
-void _initTTransportConfig_socket_udpv4(TTransportConfig_socket_udpv4 *myConfig, const int family);
-void _freeTTransportConfig_socket_udpv4(TTransportConfig_socket_udpv4 *myConfig);
-
-#endif /* CCK_TTRANSPORT_SOCKET_UDPV4_H_ */
+#endif /* CCK_TTRANSPORT_ETHERNET_COMMON_H_ */

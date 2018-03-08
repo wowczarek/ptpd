@@ -314,6 +314,13 @@ loadDefaultSettings( GlobalConfig* global )
 	global->masterFirstLock = false;
 	global->masterLockedOnly = false;
 
+#ifdef CCK_BUILD_TTRANSPORT_LINUXTS
+	global->linuxts_txBackoff = LINUXTS_TXTIMESTAMP_BACKOFF_US;
+	global->linuxts_txTimeout = LINUXTS_TXTIMESTAMP_TIMEOUT_US;
+	global->linuxts_txRetries = LINUXTS_TXTIMESTAMP_RETRIES;
+	global->linuxts_txMultiplier = LINUXTS_TXTIMESTAMP_BACKOFF_MULTIPLIER;
+#endif
+
 	strncpy(global->masterClockRefName, "EXTSYNC", sizeof(global->masterClockRefName));
 
 	/* when measuring dT, use a maximum of 5 sync intervals (would correspond to avg 20% discard rate) */

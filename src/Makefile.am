@@ -99,6 +99,8 @@ ptpd_SOURCES =				\
 	libcck/ttransport_interface.h	\
 	libcck/ttransport/udp_common.h\
 	libcck/ttransport/udp_common.c\
+	libcck/ttransport/ethernet_common.h\
+	libcck/ttransport/ethernet_common.c\
 	libcck/ttransport/socket_common.h\
 	libcck/ttransport/socket_common.c\
 	libcck/ttransport/socket_udpv4.h\
@@ -186,9 +188,6 @@ ptpd_SOURCES += libcck/ttransport/dlpi_common.h\
 		libcck/ttransport/dlpi_udpv6.h\
 		libcck/ttransport/dlpi_udpv6.c
 endif
-#		libcck/ttransport/pcap_ethernet.h
-#		libcck/ttransport/pcap_ethernet.c
-
 
 if CCK_BUILD_CLOCKDRIVER_LINUXPHC
 ptpd_SOURCES += libcck/clockdriver/vext/linuxphc_vext_intel.h\

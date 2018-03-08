@@ -45,21 +45,20 @@ typedef struct {
 	CckInterfaceInfo intInfo;
 } TTransportData_dlpi_udpv6;
 
-/* shared config across all UDP transports */
-typedef TTransportConfig_udp_common TTransportConfig_dlpi_udpv6;
 
 /* private initialisation, method assignment etc. */
 bool _setupTTransport_dlpi_udpv6(TTransport *self);
 
-/*
- * initialisation / destruction of any extra data in our private config object
- * when we create a global config object outside of the transport - this is a shared one
- */
-
-#define _initTTransportConfig_dlpi_udpv6 _initTTransportConfig_udp_common
-#define _freeTTransportConfig_dlpi_udpv6 _freeTTransportConfig_udp_common
-
 /* probe if interface @path supports @flags */
 bool _probeTTransport_dlpi_udpv6(const char *path, const int flags);
+
+/* transport configuration - any extra private settings can be implemented here */
+typedef struct {
+	TTransportConfig_udp_common common;
+} TTransportConfig_dlpi_udpv6;
+
+/* initialisation / destruction of any extra data in our private config object */
+void _initTTransportConfig_dlpi_udpv6(TTransportConfig_dlpi_udpv6 *myConfig, const int family);
+void _freeTTransportConfig_dlpi_udpv6(TTransportConfig_dlpi_udpv6 *myConfig);
 
 #endif /* CCK_TTRANSPORT_DLPI_UDPV6_H_ */

@@ -118,6 +118,8 @@ PtpText createPtpTextLen(const char *text, size_t len);
 PtpText createPtpText(const char *text);
 
 //todo: createPtpPortaddress, createPtpPhysicalAddress
+extern PtpPortAddress createPtpPortAddress(const void *addr);
+extern PtpPhysicalAddress createPtpPhysicalAddress(const void *addr);
 
 void displayPtpTimeInternal(PtpTimeInternal data, const char *name);
 
