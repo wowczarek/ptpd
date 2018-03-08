@@ -393,8 +393,9 @@ logMessageWrapper(int priority, const char * format, va_list ap)
 	GlobalConfig *global = getGlobalConfig();
 	extern Boolean startupInProgress;
 
-	va_list ap1;
+	va_list ap1, ap2;
 	va_copy(ap1, ap);
+	va_copy(ap2, ap);
 
 #ifdef RUNTIME_DEBUG
 	if ((priority >= LOG_DEBUG) && (priority > global->debug_level)) {
@@ -441,7 +442,8 @@ logMessageWrapper(int priority, const char * format, va_list ap)
 			openlog(PTPD_PROGNAME, LOG_PID, LOG_DAEMON);
 			syslogOpened = TRUE;
 		}
-		vsyslog(priority, format, ap);
+		/* git #11, Costin Popescu: we could get here after we used ap */
+		vsyslog(priority, format, ap2);
 		if (!startupInProgress) {
 			goto end;
 		}
@@ -457,6 +459,7 @@ std_err:
 
 end:
 	va_end(ap1);
+	va_end(ap2);
 	va_end(ap);
 	return;
 }

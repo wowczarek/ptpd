@@ -291,7 +291,7 @@ detectTTransport(const int family, const char *path, const int caps, const int s
 	CCK_ERROR("detectTTransport(%s): Selected transport implementation %s not usable!\n",
 		path, getTTransportTypeName(specific));
     } else {
-	CCK_ERROR("detectTTransport(%s): no usable transport implementation found!\n");
+	CCK_ERROR("detectTTransport(%s): no usable transport implementation found!\n", path);
     }
 
     return TT_TYPE_NONE;
