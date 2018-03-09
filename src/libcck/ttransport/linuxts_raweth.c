@@ -520,10 +520,11 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
 
     if(ret <= 0) {
 
-	if(errno == ENOMSG || errno == EAGAIN) {
+	/* we are looking for a regular message but may have received something in the error queue */
+	if(!txFlags && (errno == ENOMSG || errno == EAGAIN)) {
 
 	    CCK_DBG(THIS_COMPONENT"receiveMessage(%s): %s: attempting to flush the error queue\n",
-		    errno == ENOMSG ? "ENOMSG" : "EAGAIN", self->name);
+		    self->name, errno == ENOMSG ? "ENOMSG" : "EAGAIN");
 
 	    int txFlushed = 0;
 	    /* empty the errqueue */
@@ -538,7 +539,7 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
 	    return 0;
 	}
 
-	if (errno == EINTR) {
+	if (errno == EINTR || errno == EAGAIN) {
 	    CCK_DBG(THIS_COMPONENT"receiveMessage(%s): EAGAIN / EINTR: continuing as normal\n",
 		    self->name);
 	    return 0;
