@@ -604,26 +604,27 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
 	return 0;
     }
 
-    /* drain the socket, but ignore what we received */
-    if(self->config.discarding) {
-	return 0;
-    }
-
     if(ret <= 0) {
 
-	if(errno == ENOMSG) {
-	    /* empty the errqueue */
+	if(errno == ENOMSG || errno == EAGAIN) {
+
+	    CCK_DBG(THIS_COMPONENT"receiveMessage(%s): %s: attempting to flush the error queue\n",
+		    errno == ENOMSG ? "ENOMSG" : "EAGAIN", self->name);
+
 	    int txFlushed = 0;
+	    /* empty the errqueue */
 	    while( recvmsg(self->myFd.fd, &msg, MSG_ERRQUEUE | MSG_DONTWAIT) >= 0) {
 		txFlushed++;
 		CCK_DBG(THIS_COMPONENT"receiveMessage(%s): Flushing errqueue, message #%d\n", self->name, txFlushed);
 	    }
 	    /* drop the next regular message as well - it can be severely delayed... */
-	    recvmsg(self->myFd.fd, &msg, MSG_DONTWAIT);
+	    if(txFlushed > 0) {
+		recvmsg(self->myFd.fd, &msg, MSG_DONTWAIT);
+	    }
 	    return 0;
 	}
 
-	if (errno == EAGAIN || errno == EINTR) {
+	if (errno == EINTR) {
 	    CCK_DBG(THIS_COMPONENT"receiveMessage(%s): EAGAIN / EINTR: continuing as normal\n",
 		    self->name);
 	    return 0;
@@ -634,6 +635,11 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
 	self->counters.rxErrors++;
 	return ret;
 
+    }
+
+    /* drain the socket, but ignore what we received */
+    if(self->config.discarding) {
+	return 0;
     }
 
     if (msg.msg_flags & MSG_TRUNC) {
