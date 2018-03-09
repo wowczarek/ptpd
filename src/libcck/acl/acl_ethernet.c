@@ -199,6 +199,7 @@ _dumpEntry (CckAclEntry* entry, char *buf, const int len) {
     netAddr.family = TT_FAMILY_ETHERNET;
     maskAddr.family = TT_FAMILY_ETHERNET;
 
+    /* wait... what?! */
     netAddr.addr.inet.sa_family = AF_INET6;
     maskAddr.addr.inet.sa_family = AF_INET6;
 

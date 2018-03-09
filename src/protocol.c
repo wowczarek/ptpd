@@ -2620,7 +2620,7 @@ issueAnnounce(const GlobalConfig *global,PtpClock *ptpClock)
 	Boolean okToSend = TRUE;
 
 	Timestamp originTimestamp;
-	TimeInternal internalTime;
+	TimeInternal internalTime = {0, 0};
 
 	/* grab a single timestamp once for all Announce - doing it for each individual message can be costly */
 	getPtpClockTime(&internalTime, ptpClock);
@@ -2816,7 +2816,7 @@ static void
 issueDelayReq(const GlobalConfig *global,PtpClock *ptpClock)
 {
 	Timestamp originTimestamp;
-	TimeInternal internalTime;
+	TimeInternal internalTime = {0, 0};
 
 	/* see LEAPNOTE01# in this file */
 	if(ptpClock->leapSecondInProgress) {
@@ -2881,7 +2881,7 @@ issuePdelayReq(const GlobalConfig *global,PtpClock *ptpClock)
 {
 	void *dst = ptpClock->peerEventDestination;
 	Timestamp originTimestamp;
-	TimeInternal internalTime;
+	TimeInternal internalTime = {0, 0};
 
 	/* see LEAPNOTE01# in this file */
 	if(ptpClock->leapSecondInProgress) {

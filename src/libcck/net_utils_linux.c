@@ -236,7 +236,9 @@ void getLinuxInterfaceInfo(LinuxInterfaceInfo *info, const char *ifName)
 
     info->valid = true;
 
-    strncpy(info->ifName, ifName, IFNAMSIZ);
+    if(ifName != info->ifName) {
+	strncpy(info->ifName, ifName, IFNAMSIZ);
+    }
 
     getLinuxVlanInfo(vlanInfo, ifName);
 

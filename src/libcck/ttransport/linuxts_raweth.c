@@ -89,8 +89,8 @@ _probeTTransport_linuxts_raweth(const char *path, const int flags) {
 void
 _initTTransportConfig_linuxts_raweth(TTransportConfig_linuxts_raweth *myConfig, const int family)
 {
-    _initTTransportConfig_ethernet_common(&myConfig->common, family);
-    _initTTransportConfig_linuxts_common(&myConfig->linuxts, family);
+	_initTTransportConfig_ethernet_common(&myConfig->common, family);
+	_initTTransportConfig_linuxts_common(&myConfig->linuxts, family);
 }
 
 void

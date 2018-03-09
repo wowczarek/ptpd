@@ -188,7 +188,7 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 #ifdef CCK_BUILD_TTRANSPORT_LINUXTS
 	    case TT_TYPE_LINUXTS_UDPV6:
 		{
-		    CCK_GET_PCONFIG(TTransport, linuxts_udpv4, config, pConfig);
+		    CCK_GET_PCONFIG(TTransport, linuxts_udpv6, config, pConfig);
 		    pConfig->linuxts.txBackoff = global->linuxts_txBackoff;
 		    pConfig->linuxts.txTimeout = global->linuxts_txTimeout;
 		    pConfig->linuxts.txRetries = global->linuxts_txRetries;
@@ -303,9 +303,8 @@ setCommonTransportConfig(TTransportConfig *config, const GlobalConfig *global) {
 
 #ifdef CCK_BUILD_TTRANSPORT_LINUXTS
 	    case TT_TYPE_LINUXTS_RAWETH:
-
 		{
-		    CCK_GET_PCONFIG(TTransport, linuxts_udpv4, config, pConfig);
+		    CCK_GET_PCONFIG(TTransport, linuxts_raweth, config, pConfig);
 		    pConfig->linuxts.txBackoff = global->linuxts_txBackoff;
 		    pConfig->linuxts.txTimeout = global->linuxts_txTimeout;
 		    pConfig->linuxts.txRetries = global->linuxts_txRetries;
@@ -1019,8 +1018,9 @@ initPtpTransports(PtpClock *ptpClock, CckFdSet *fdSet, const GlobalConfig *globa
 	    goto gameover;
 	}
 
-	freeTTransportConfig(&generalConfig);
     }
+
+    freeTTransportConfig(&generalConfig);
 
     configureAcls(ptpClock, global);
 
