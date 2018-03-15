@@ -216,6 +216,7 @@ typedef struct {
 	char readOnlyClocks[PATH_MAX];
 	char disabledClocks[PATH_MAX];
 	char excludedClocks[PATH_MAX];
+	char noStepClocks[PATH_MAX];
 
 	bool masterFirstLock; /* do not enter master state until PTP clock locked */
 	bool masterLockedOnly; /* only run as master when PTP clock is locked or in holdover */

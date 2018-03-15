@@ -112,6 +112,7 @@ configureClockDriver(ClockDriver *driver, const void *configData)
     }
 
     config->noStep = global->noStep;
+    config->noStep = (tokenInList(global->noStepClocks, driver->name, DEFAULT_TOKEN_DELIM)) ? TRUE:global->noStep;
     config->negativeStep = global->negativeStep;
     config->storeToFile = global->storeToFile;
     config->adevPeriod = global->adevPeriod;

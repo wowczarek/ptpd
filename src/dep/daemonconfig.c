@@ -2117,6 +2117,11 @@ parseConfig ( int opCode, void *opArg, dictionary* dict, GlobalConfig *global )
 	"	 best clock selection - they will be synced unless read only, but will never be\n"
 	"	 selected as best clock.\n");
 
+	parseResult &= configMapString(opCode, opArg, dict, target, "clock:no_step_clock_names",
+		PTPD_RESTART_NONE, global->noStepClocks, sizeof(global->noStepClocks), global->noStepClocks,
+	"Specify a comma, space or tab separated list of names of clocks that should never be stepped.\n"
+	"	 This is a per-clock override of clock:no_step.\n");
+
 	parseResult &= configMapInt(opCode, opArg, dict, target, "clock:sync_rate",
 		PTPD_RESTART_NONE, INTTYPE_INT, &global->clockSyncRate,
 		global->clockSyncRate,
