@@ -118,7 +118,7 @@ enum {
 
 /* clock states */
 typedef enum {
-    CS_SUSPENDED,	/* clock is suspended - no updates accepted */
+    CS_SUSPENDED = 0,	/* clock is suspended - no updates accepted */
     CS_NEGSTEP,		/* clock is locked up because of negative offset (< -1 s) - requires manual step with SIGUSR1 */
     CS_STEP,		/* clock is suspended because of offset > 1 s, counting down to step */
     CS_HWFAULT,		/* hardware fault */
@@ -127,21 +127,26 @@ typedef enum {
     CS_FREQEST,		/* clock has (re)gained a reference and is preparing for sync */
     CS_TRACKING,	/* clock is tracking a reference but is not (yet) locked, or was locked and adev is outside threshold. */
     CS_HOLDOVER,	/* clock is in holdover: was LOCKED but has been idle (no updates) or lost its reference */
-    CS_LOCKED		/* clock is locked to reference (adev below threshold) */
-
+    CS_LOCKED,		/* clock is locked to reference (adev below threshold) */
+    CS_MAX		/* marker*/
     /* Note: only clocks in LOCKED or HOLDOVER state are considered for best clock selection */
 
 } ClockState;
 
 /* state change reason codes */
-enum {
+typedef enum {
+    CSR_OTHER = 0,	/* other / unknown */
     CSR_INTERNAL,	/* internal FSM work: init, shutdown, etc */
     CSR_OFFSET,		/* state change because of reference offset value */
     CSR_IDLE,		/* clock was idle */
-    CSR_AGE,		/* state age: holdover->freerun, etc. */
+    CSR_SYNC,		/* resumed / started sync */
+    CSR_AGE,		/* state age / timeout: holdover->freerun, etc. */
     CSR_REFCHANGE,	/* reference */
-    CSR_FAULT		/* fault */
-};
+    CSR_QUALITY,	/* quality change */
+    CSR_FORCED,		/* forced state because of configuration - always locked, etc. */
+    CSR_FAULT,		/* fault */
+    CSR_MAX		/* marker */
+} ClockStateReason;
 
 /* clock driver configuration */
 typedef struct {
@@ -270,6 +275,8 @@ struct ClockDriver {
 
     ClockState state;			/* clock state */
     ClockState lastState;		/* previous clock state */
+    ClockStateReason stateReason;	/* why state changed? */
+    ClockStateReason lastStateReason;	/* why we got into previous state? */
 
     char refName[CCK_COMPONENT_NAME_MAX + 1]; /* instance name of the clock's reference */
     int refClass;			/* reference class - internal, external, PTP, etc. */
@@ -292,6 +299,11 @@ struct ClockDriver {
     double lastFrequency;		/* last known frequency offset */
     double storedFrequency;		/* stored (good) frequency offset */
     double maxFrequency;		/* maximum frequency offset that can be set */
+
+    struct {
+	uint16_t stateChanges;
+	uint16_t stateStats[CS_MAX][CSR_MAX];
+    } counters;
 
     /* callbacks */
     struct {
@@ -344,7 +356,7 @@ struct ClockDriver {
 
     /* inherited methods */
 
-    void (*setState) (ClockDriver *, ClockState);			/* put clock driver in given state */
+    void (*setState) (ClockDriver *, ClockState, ClockStateReason);	/* put clock driver in given state */
     void (*setStatus) (ClockDriver*, int flags, ClockStatus*);		/* set clock status ( a reference would do that ) */
     void (*processUpdate) (ClockDriver *);
 
@@ -429,6 +441,9 @@ bool createClockDriversFromString(const char* list, bool (*pushConfig) (ClockDri
 
 const char*	getClockStateName(ClockState);
 const char*	getClockStateShortName(ClockState);
+const char*	getClockStateReasonName(ClockStateReason reason);
+const char*	getClockStateReasonDesc(ClockStateReason reason);
+
 const char*	getClockDriverTypeName(int);
 int		getClockDriverType(const char*);
 bool		parseClockDriverSpec(const char*, ClockDriverSpec *);

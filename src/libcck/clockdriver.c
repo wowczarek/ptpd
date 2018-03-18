@@ -74,7 +74,7 @@ static const char *clockDriverNames[] = {
 
 /* inherited methods */
 
-static void setState(ClockDriver *, ClockState);
+static void setState(ClockDriver *, ClockState, ClockStateReason);
 static void processUpdate(ClockDriver *);
 static void touchClock(ClockDriver *driver);
 static bool healthCheck(ClockDriver *);
@@ -216,9 +216,10 @@ freeClockDriver(ClockDriver** clockDriver)
 	return;
     }
 
+    /* remove reference from all clocks referencing this clock */
     LL_FOREACH_STATIC(cd) {
 	if(cd->refClock == pdriver) {
-	    pdriver->setReference(pdriver, NULL);
+	    cd->setReference(cd, NULL);
 	}
     }
 
@@ -350,9 +351,15 @@ createClockDriversFromString(const char* list, bool (*pushConfig) (ClockDriver *
 
 
 static void
-setState(ClockDriver *driver, ClockState newState) {
+setState(ClockDriver *driver, ClockState newState, ClockStateReason reason) {
 
 	if(driver == NULL) {
+	    return;
+	}
+
+	if(newState >= CS_MAX) {
+	    CCK_DBG(THIS_COMPONENT"Clock %s: setState(): unknown state %d\n", driver->name,
+			newState);
 	    return;
 	}
 
@@ -363,9 +370,15 @@ setState(ClockDriver *driver, ClockState newState) {
 	/* todo: switch/case FSM leaving+entering as we get more conditions */
 	if(driver->state != newState) {
 
-	    CCK_NOTICE(THIS_COMPONENT"Clock %s changed state from %s to %s\n",
+	    driver->counters.stateChanges++;
+
+	    if(newState < CS_MAX && reason < CSR_MAX) {
+		driver->counters.stateStats[newState][reason]++;
+	    }
+
+	    CCK_NOTICE(THIS_COMPONENT"Clock %s changed state from %s to %s (reason: %s)\n",
 		    driver->name, getClockStateName(driver->state),
-		    getClockStateName(newState));
+		    getClockStateName(newState), getClockStateReasonDesc(reason));
 
 	    getSystemClock()->getTimeMonotonic(getSystemClock(), &driver->_lastUpdate);
 	    tsOps.clear(&driver->age);
@@ -402,7 +415,9 @@ setState(ClockDriver *driver, ClockState newState) {
 	    }
 
 	    driver->lastState = driver->state;
+	    driver->lastStateReason = driver->stateReason;
 	    driver->state = newState;
+	    driver->stateReason = reason;
 
 	    SAFE_CALLBACK(driver->callbacks.onStateChange, driver, driver->owner, driver->lastState, driver->state);
 	    SAFE_CALLBACK(driver->callbacks.onLock, driver, driver->owner, newState == CS_LOCKED);
@@ -437,7 +452,7 @@ updateClockDrivers(int interval) {
 		case CS_HWFAULT:
 		    if(cd->age.seconds >= cd->config.faultTimeout) {
 			if(cd->healthCheck(cd)) {
-			    cd->setState(cd, CS_FREERUN);
+			    cd->setState(cd, CS_FREERUN, CSR_FAULT);
 			} else {
 			    cd->touchClock(cd);
 			}
@@ -448,7 +463,7 @@ updateClockDrivers(int interval) {
 		case CS_STEP:
 		    if(cd->age.seconds >= cd->config.stepTimeout) {
 			CCK_WARNING(THIS_COMPONENT"Clock %s suspension delay timeout, resuming clock updates\n", cd->name);
-			cd->setState(cd, CS_FREERUN);
+			cd->setState(cd, CS_FREERUN, CSR_QUALITY);
 			cd->_canResume = true;
 		    }
 		    break;
@@ -466,12 +481,12 @@ updateClockDrivers(int interval) {
 		    break;
 		case CS_LOCKED:
 			if((cd->refClock == NULL) && (!cd->externalReference)) {
-			    cd->setState(cd, CS_HOLDOVER);
+			    cd->setState(cd, CS_HOLDOVER, CSR_REFCHANGE);
 			    resetIntPermanentAdev(&cd->_adev);
 			    break;
 			} else if(cd->refClock != NULL) {
 			    if((cd->refClock->state != CS_LOCKED) && (cd->refClock->state != CS_HOLDOVER)) {
-				cd->setState(cd, CS_HOLDOVER);
+				cd->setState(cd, CS_HOLDOVER, CSR_REFCHANGE);
 				resetIntPermanentAdev(&cd->_adev);
 				cd->setReference(cd, NULL);
 				break;
@@ -479,19 +494,19 @@ updateClockDrivers(int interval) {
 			}
 			if(!cd->maintainLock && (cd->age.seconds > cd->config.lockedAge)) {
 			    resetIntPermanentAdev(&cd->_adev);
-			    cd->setState(cd, CS_HOLDOVER);
+			    cd->setState(cd, CS_HOLDOVER, CSR_IDLE);
 			}
 		    break;
 		case CS_TRACKING:
 			if((cd->refClock == NULL) && (!cd->externalReference)) {
 			    resetIntPermanentAdev(&cd->_adev);
-			    cd->setState(cd, CS_FREERUN);
+			    cd->setState(cd, CS_FREERUN, CSR_REFCHANGE);
 			    break;
 			}
 		    break;
 		case CS_HOLDOVER:
 			if(cd->age.seconds > cd->config.holdoverAge) {
-			    cd->setState(cd, CS_FREERUN);
+			    cd->setState(cd, CS_FREERUN, CSR_AGE);
 			}
 		    break;
 		default:
@@ -636,12 +651,12 @@ processUpdate(ClockDriver *driver) {
 		update = false;
 	    } else {
 		if(driver->servo.runningMaxOutput) {
-		    driver->setState(driver, CS_TRACKING);
+		    driver->setState(driver, CS_TRACKING, CSR_QUALITY);
 		} else if(driver->adev <= driver->config.stableAdev) {
 		    driver->storeFrequency(driver);
-		    driver->setState(driver, CS_LOCKED);
+		    driver->setState(driver, CS_LOCKED, CSR_QUALITY);
 		} else if((driver->adev >= driver->config.unstableAdev) && (driver->state == CS_LOCKED)) {
-		    driver->setState(driver, CS_TRACKING);
+		    driver->setState(driver, CS_TRACKING, CSR_QUALITY);
 		}
 		update = true;
 	    }
@@ -650,23 +665,23 @@ processUpdate(ClockDriver *driver) {
 	}
 
 	if(driver->state == CS_FREERUN) {
-	    driver->setState(driver, CS_TRACKING);
+	    driver->setState(driver, CS_TRACKING, CSR_SYNC);
 	    update = true;
 	}
 
 	if((driver->state == CS_HOLDOVER) && (driver->age.seconds <= driver->config.holdoverAge)) {
-	    driver->setState(driver, CS_TRACKING);
+	    driver->setState(driver, CS_TRACKING, CSR_SYNC);
 	    update = true;
 	}
 
 	if((driver->state == CS_LOCKED) && driver->servo.runningMaxOutput) {
-	    driver->setState(driver, CS_TRACKING);
+	    driver->setState(driver, CS_TRACKING, CSR_QUALITY);
 	    update = true;
 	}
 
 	if((driver->state == CS_NEGSTEP) && !tsOps.isNegative(&driver->refOffset)) {
 	    driver->lockedUp = false;
-	    driver->setState(driver, CS_FREERUN);
+	    driver->setState(driver, CS_FREERUN, CSR_OFFSET);
 	    update = true;
 	}
 
@@ -730,7 +745,7 @@ setReference(ClockDriver *a, ClockDriver *b) {
 	a->refClock = NULL;
 	memset(a->refName, 0, CCK_COMPONENT_NAME_MAX);
 	if(a->state == CS_LOCKED) {
-	    a->setState(a, CS_HOLDOVER);
+	    a->setState(a, CS_HOLDOVER, CSR_REFCHANGE);
 	} else {
 	    a->distance = 255;
 	}
@@ -749,7 +764,7 @@ setReference(ClockDriver *a, ClockDriver *b) {
 	a->lastRefClass = a->refClass;
 	a->refClock = NULL;
 	if(a->state == CS_LOCKED) {
-	    a->setState(a, CS_HOLDOVER);
+	    a->setState(a, CS_HOLDOVER, CSR_REFCHANGE);
 	} else {
 	    a->distance = 255;
 	}
@@ -766,7 +781,7 @@ setReference(ClockDriver *a, ClockDriver *b) {
 	a->distance = b->distance + 1;
 	strncpy(a->refName, b->name, CCK_COMPONENT_NAME_MAX);
 
-	a->setState(a, CS_FREERUN);
+	a->setState(a, CS_FREERUN, CSR_REFCHANGE);
 
     }
 
@@ -789,7 +804,7 @@ finalise:
     if(a == _masterClock && b == NULL) {
 	a->setExternalReference(a, getCckConfig()->masterClockRefName, RC_EXTERNAL);
 	a->maintainLock = true;
-	a->setState(a, CS_LOCKED);
+	a->setState(a, CS_LOCKED, CSR_FORCED);
     }
 
 }
@@ -811,7 +826,7 @@ static void setExternalReference(ClockDriver *a, const char* refName, int refCla
 
 	if(!a->externalReference || strncmp(a->refName, refName, CCK_COMPONENT_NAME_MAX)) {
 	    CCK_NOTICE(THIS_COMPONENT"Clock %s changing to external reference %s\n", a->name, refName);
-	    a->setState(a, CS_FREERUN);
+	    a->setState(a, CS_FREERUN, CSR_REFCHANGE);
 	}
 
 	strncpy(a->refName, refName, CCK_COMPONENT_NAME_MAX);
@@ -925,7 +940,7 @@ stepTime (ClockDriver* driver, CckTimestamp *delta, bool force)
 	} else {
 	    /* no frequency estimate, start the process */
 	    if(driver->config.calibrationTime && !driver->_frequencyEstimated) {
-		driver->setState(driver, CS_FREQEST);
+		driver->setState(driver, CS_FREQEST, CSR_QUALITY);
 		return false;
 	    }
 	}
@@ -934,7 +949,7 @@ stepTime (ClockDriver* driver, CckTimestamp *delta, bool force)
 		CCK_CRITICAL(THIS_COMPONENT"Cannot step clock %s  backwards\n", driver->name);
 		CCK_CRITICAL(THIS_COMPONENT"Manual intervention required or SIGUSR1 to force %s clock step\n", driver->name);
 		driver->lockedUp = true;
-		driver->setState(driver, CS_NEGSTEP);
+		driver->setState(driver, CS_NEGSTEP, CSR_OFFSET);
 		return false;
 	}
 
@@ -976,7 +991,7 @@ stepTime (ClockDriver* driver, CckTimestamp *delta, bool force)
 	driver->_stepped = true;
 
 	if(force || (driver->state != CS_FREQEST)) {
-		driver->setState(driver, CS_FREERUN);
+		driver->setState(driver, CS_FREERUN, CSR_QUALITY);
 	}
 
 	return true;
@@ -1054,7 +1069,7 @@ estimateFrequency(ClockDriver *driver, double tau) {
 	    driver->_estimateCount = 0;
 	    resetDoublePermanentMean(&driver->_calMean);
 	    driver->stepTime(driver, &driver->refOffset, false);
-	    driver->setState(driver, CS_TRACKING);
+	    driver->setState(driver, CS_TRACKING, CSR_OFFSET);
 	    return true;
 	}
 
@@ -1096,7 +1111,7 @@ estimateFrequency(ClockDriver *driver, double tau) {
 		}
 		resetDoublePermanentMean(&driver->_calMean);
 		driver->stepTime(driver, &driver->refOffset, false);
-		driver->setState(driver, CS_TRACKING);
+		driver->setState(driver, CS_TRACKING, CSR_OFFSET);
 	}
 
 	return true;
@@ -1261,7 +1276,7 @@ disciplineClock(ClockDriver *driver, CckTimestamp offset, double tau) {
 			} else {
 			    CCK_WARNING(THIS_COMPONENT"Clock %s offset above 1 second (%s s), suspending clock control for %d seconds (panic mode)\n",
 				    driver->name, buf, driver->config.stepTimeout);
-			    driver->setState(driver, CS_STEP);
+			    driver->setState(driver, CS_STEP, CSR_OFFSET);
 			    return false;
 			}
 		}
@@ -1299,12 +1314,12 @@ disciplineClock(ClockDriver *driver, CckTimestamp offset, double tau) {
 			return false;
 		    }
 		    CCK_NOTICE(THIS_COMPONENT"Clock %s offset below 1 second, resuming clock control\n", driver->name);
-		    driver->setState(driver, CS_FREERUN);
+		    driver->setState(driver, CS_FREERUN, CSR_OFFSET);
 		}
 
 		if(driver->state == CS_NEGSTEP) {
 		    driver->lockedUp = false;
-		    driver->setState(driver, CS_FREERUN);
+		    driver->setState(driver, CS_FREERUN, CSR_OFFSET);
 		}
 
 		if(driver->state == CS_FREQEST) {
@@ -1326,7 +1341,7 @@ disciplineClock(ClockDriver *driver, CckTimestamp offset, double tau) {
 
 			SAFE_CALLBACK(driver->callbacks.onFrequencyJump, driver, driver->owner);
 
-			driver->setState(driver, CS_HOLDOVER);
+			driver->setState(driver, CS_HOLDOVER, CSR_QUALITY);
 
 			driver->rawOffset = driver->_lastOffset;
 			driver->refOffset = driver->_lastOffset;
@@ -1532,6 +1547,65 @@ getClockStateShortName(ClockState state) {
 
 }
 
+const char*
+getClockStateReasonName(ClockStateReason reason) {
+
+    switch(reason) {
+	case CSR_INTERNAL:	/* internal FSM work: init, shutdown, etc */
+	    return "INTERNAL";
+	case CSR_OFFSET:	/* state change because of reference offset value */
+	    return "OFFSET";
+	case CSR_IDLE:		/* clock was idle */
+	    return "IDLE";
+	case CSR_SYNC:		/* resumed sync */
+	    return "SYNC";
+	case CSR_AGE:		/* state age: holdover->freerun, etc. */
+	    return "TIMEOUT";
+	case CSR_REFCHANGE:	/* reference */
+	    return "REFCHANGE";
+	case CSR_QUALITY:	/* offset change / re-sync */
+	    return "QUALITY";
+	case CSR_FORCED:
+	    return "FORCED";
+	case CSR_FAULT:		/* fault */
+	    return "FAULT";
+	case CSR_OTHER:
+	default:
+	    return "OTHER";
+    }
+
+}
+
+const char*
+getClockStateReasonDesc(ClockStateReason reason) {
+
+    switch(reason) {
+	case CSR_INTERNAL:	/* internal FSM work: init, shutdown, etc */
+	    return "init / shutdown";
+	case CSR_OFFSET:	/* state change because of reference offset value */
+	    return "offset change";
+	case CSR_IDLE:		/* clock was idle */
+	    return "idle / no updates";
+	case CSR_SYNC:		/* resumed sync */
+	    return "synchronising";
+	case CSR_AGE:		/* state age: holdover->freerun, etc. */
+	    return "timeout";
+	case CSR_REFCHANGE:	/* reference */
+	    return "reference change";
+	case CSR_QUALITY:	/* offset change / re-sync */
+	    return "quality change";
+	case CSR_FORCED:
+	    return "forced";
+	case CSR_FAULT:		/* fault */
+	    return "fault";
+	case CSR_OTHER:
+	default:
+	    return "unknown";
+    }
+
+}
+
+
 ClockDriver*
 findClockDriver(const char * search) {
 
@@ -1682,6 +1756,7 @@ controlClockDrivers(int command, const void *arg) {
 		    continue;
 		}
 		CCK_INFO(THIS_COMPONENT"Clock driver %s state %s\n", cd->name, getClockStateName(cd->state));
+		/* todo: dump clock info with counters */
 	    }
 	break;
 
@@ -2141,7 +2216,7 @@ setCckMasterClock(ClockDriver *newMaster)
 	/* if master clock loses reference, it is automatically locked to imaginary external reference, this is why we assigned earlier */
 	lastMaster->setReference(lastMaster, NULL);
 	lastMaster->maintainLock = false;
-	lastMaster->setState(lastMaster, CS_FREERUN);
+	lastMaster->setState(lastMaster, CS_FREERUN, CSR_REFCHANGE);
 
     }
 
@@ -2149,7 +2224,7 @@ setCckMasterClock(ClockDriver *newMaster)
 
 	_masterClock->setExternalReference(_masterClock, getCckConfig()->masterClockRefName, RC_EXTERNAL);
 	_masterClock->maintainLock = true;
-	_masterClock->setState(_masterClock, CS_LOCKED);
+	_masterClock->setState(_masterClock, CS_LOCKED, CSR_FORCED);
 
     }
 

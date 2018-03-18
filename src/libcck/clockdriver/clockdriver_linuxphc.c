@@ -199,7 +199,7 @@ clockDriver_init(ClockDriver* self, const void *userData) {
 
     self->_init = true;
 
-    self->setState(self, CS_FREERUN);
+    self->setState(self, CS_FREERUN, CSR_INTERNAL);
 
     memset(self->config.frequencyFile, 0, PATH_MAX);
     snprintf(self->config.frequencyFile, PATH_MAX, CLOCKDRIVER_FREQFILE_PREFIX"_phc%d.frequency", myData->phcIndex);
@@ -243,7 +243,7 @@ getTime (ClockDriver *self, CckTimestamp *time) {
 	struct timespec tp;
 	if (clock_gettime(myData->clockId, &tp) < 0) {
 		CCK_PERROR(THIS_COMPONENT"clock_gettime() failed,");
-		self->setState(self, CS_HWFAULT);
+		self->setState(self, CS_HWFAULT, CSR_FAULT);
 		return false;
 	}
 	time->seconds = tp.tv_sec;
@@ -285,7 +285,7 @@ setTime (ClockDriver *self, CckTimestamp *time) {
 
 	if (clock_settime(myData->clockId, &tp) < 0) {
 		CCK_PERROR(THIS_COMPONENT"Clock '%s' (%s): Could not set time ", self->name, myConfig->characterDevice);
-		self->setState(self, CS_HWFAULT);
+		self->setState(self, CS_HWFAULT, CSR_FAULT);
 		return false;
 	}
 
@@ -380,7 +380,7 @@ setFrequency (ClockDriver *self, double adj, double tau) {
 
 	if(clock_adjtime(myData->clockId, &tmx) < 0) {
 	    CCK_PERROR(THIS_COMPONENT"Could not adjust frequency offset of clock %s (%s)", self->name, myConfig->characterDevice);
-	    self->setState(self, CS_HWFAULT);
+	    self->setState(self, CS_HWFAULT, CSR_FAULT);
 	    return false;
 	}
 
@@ -404,7 +404,7 @@ getFrequency (ClockDriver *self) {
 	memset(&tmx, 0, sizeof(tmx));
 	if(clock_adjtime(myData->clockId, &tmx) < 0) {
 	    CCK_PERROR(THIS_COMPONENT"Could not get frequency of clock %s (%s)", self->name, myConfig->characterDevice);
-	    self->setState(self, CS_HWFAULT);
+	    self->setState(self, CS_HWFAULT, CSR_FAULT);
 	    return 0;
 	}
 	return( (tmx.freq + 0.0) / 65.536);
@@ -507,7 +507,7 @@ getSystemClockOffset(ClockDriver *self, CckTimestamp *output)
     if(ioctl(myData->clockFd, PTP_SYS_OFFSET, &sof) < 0) {
 	CCK_PERROR(THIS_COMPONENT"Could not read OS clock offset for %s (%s)",
 		self->name, myConfig->characterDevice);
-	self->setState(self, CS_HWFAULT);
+	self->setState(self, CS_HWFAULT, CSR_FAULT);
 	return false;
     }
 

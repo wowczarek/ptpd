@@ -161,7 +161,7 @@ clockDriver_init(ClockDriver* self, const void *config) {
 #endif
     self->servo.maxOutput = self->maxFrequency;
     self->_vendorInit(self);
-    self->setState(self, CS_FREERUN);
+    self->setState(self, CS_FREERUN, CSR_INTERNAL);
     return 1;
 
 }
