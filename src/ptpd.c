@@ -132,6 +132,8 @@ main(int argc, char **argv)
 	toState(PTP_INITIALIZING, &global, &ptpClock);
 	if(global.statusLog.logEnabled)
 		writeStatusFile(&ptpClock, &global, TRUE);
+  if(global.jsonLog.logEnabled)
+    writeJsonFile(&ptpClock, &global);
 
 	/* look, we have an event loop now... */
 	while(true) {

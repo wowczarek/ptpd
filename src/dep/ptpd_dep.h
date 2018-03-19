@@ -401,6 +401,6 @@ resetWarnings(const GlobalConfig * global, PtpClock * ptpClock);
 void updatePtpEngineStats (PtpClock* ptpClock, const GlobalConfig* global);
 
 void writeStatusFile(PtpClock *ptpClock, const GlobalConfig *global, Boolean quiet);
-
+void writeJsonFile(PtpClock *ptpClock, const GlobalConfig *global);
 
 #endif /*PTPD_DEP_H_*/

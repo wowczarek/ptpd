@@ -545,6 +545,15 @@ ptpdShutdown(PtpClock * ptpClock)
 		unlink(global->statusLog.logPath);
 	}
 
+	if(global->jsonLog.logEnabled) {
+		/* close and remove the JSON file */
+		if(global->jsonLog.logFP != NULL) {
+			fclose(global->jsonLog.logFP);
+			global->jsonLog.logFP = NULL;
+		}
+		unlink(global->jsonLog.logPath);
+	}
+
 	stopLogging(global);
 
 }

@@ -2429,6 +2429,14 @@ parseConfig ( int opCode, void *opArg, dictionary* dict, GlobalConfig *global )
 		PTPD_RESTART_NONE, &global->statusLog.logEnabled, global->statusLog.logEnabled,
 		"Enable / disable writing status information to file.");
 
+	CONFIG_KEY_TRIGGER("global:json_file", global->jsonLog.logEnabled,TRUE,FALSE);
+	parseResult &= configMapString(opCode, opArg, dict, target, "global:json_file",
+		PTPD_RESTART_LOGGING, global->jsonLog.logPath, sizeof(global->jsonLog.logPath), global->jsonLog.logPath,
+	"File used to log "PTPD_PROGNAME" status information in JSON format.");
+	parseResult &= configMapBoolean(opCode, opArg, dict, target, "global:log_json",
+		PTPD_RESTART_NONE, &global->jsonLog.logEnabled, global->jsonLog.logEnabled,
+		"Enable / disable writing status information to JSON file.");
+
 	parseResult &= configMapInt(opCode, opArg, dict, target, "global:status_update_interval",
 		PTPD_RESTART_LOGGING, INTTYPE_INT, &global->statusFileUpdateInterval, global->statusFileUpdateInterval,
 		"Status file update interval in seconds.", RANGECHECK_RANGE,

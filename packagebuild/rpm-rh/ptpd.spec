@@ -23,7 +23,7 @@ Name: ptpd-libcck
 Summary: Synchronises system time using the Precision Time Protocol (PTP) implementing the IEEE 1588-2008 (PTP v 2) standard. Full version with master and slave support.
 %endif
 Version: 2.3.2
-Release: 6%{distver}%{?gittag}
+Release: 6.3%{distver}%{?gittag}
 License: distributable
 Group: System Environment/Daemons
 Vendor: PTPd project team
@@ -73,9 +73,9 @@ time synchronised via the PTP protocol or serving PTP time.
 %build
 
 %if %{slaveonly_build} == 1
-./configure --enable-slave-only --with-max-unicast-destinations=512
+./configure --enable-slave-only --with-max-unicast-destinations=512 --enable-runtime-debug
 %else
-./configure --with-max-unicast-destinations=512
+./configure --with-max-unicast-destinations=512 --enable-runtime-debug
 %endif
 
 make -j8
@@ -217,6 +217,10 @@ fi
 %{_datadir}/ptpd/*
 
 %changelog
+* Mon Dec 4 2017 Luke Bigum <luke.bigum@lmax.com> 2.3.2-6.3
+- Fix memory leak when using JSON file
+* Sun Nov 12 2017 Luke Bigum <luke.bigum@lmax.com> 2.3.2-6.2
+- add option to write status contents to a JSON file
 * Mon Feb 27 2017 Wojciech Owczarek <wojciech@owczarek.co.uk> 2.3.2-6
 - libcck progress import (clockdriver, transport, timer)
 * Fri Nov 18 2016 Wojciech Owczarek <wojciech@owczarek.co.uk> 2.3.2-5
