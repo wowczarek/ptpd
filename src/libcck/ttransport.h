@@ -314,7 +314,7 @@ struct TTransport {
     /* get an instnce of the clock driver generating this clock's timestamps, create if not existing */
     ClockDriver* (*getClockDriver) (TTransport *);
     /* perform any periodic checks - may result in onNetworkChange callback */
-    int (*monitor) (TTransport *, const int interval, const bool quiet);
+    unsigned int (*monitor) (TTransport *, const int interval, const bool quiet);
     /* perform any refresh actions - mcast joins, etc. */
     int (*refresh) (TTransport *);
     /* load any vendor extensions */

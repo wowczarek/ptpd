@@ -769,7 +769,7 @@ getClockDriver(TTransport *self) {
 
 }
 
-static int
+static unsigned int
 monitor(TTransport *self, const int interval, const bool quiet) {
 
     CCK_GET_PCONFIG(TTransport, linuxts_udpv4, self, myConfig);
@@ -780,7 +780,7 @@ monitor(TTransport *self, const int interval, const bool quiet) {
 	self->family, &myConfig->common.sourceAddress, true);
     }
 
-    int res = monitorInterface(&myData->intInfo, &myConfig->common.sourceAddress, quiet);
+    unsigned int res = monitorInterface(&myData->intInfo, &myConfig->common.sourceAddress, quiet);
 
     /* this will eventually cause transport restart anyway - no need to check bonding etc. */
     if(res & (CCK_INTINFO_FAULT | CCK_INTINFO_CHANGE)) {
@@ -796,7 +796,7 @@ monitor(TTransport *self, const int interval, const bool quiet) {
 	getLinuxInterfaceInfo(&myData->lintInfo, myConfig->common.interface);
     };
 
-    int lres = monitorLinuxInterface(&myData->lintInfo, quiet);
+    unsigned int lres = monitorLinuxInterface(&myData->lintInfo, quiet);
 
     /* Linux-specific fault */
     if(lres & CCK_INTINFO_FAULT) {

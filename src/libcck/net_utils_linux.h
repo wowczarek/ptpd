@@ -102,6 +102,6 @@ void getLinuxVlanInfo(LinuxVlanInfo *info, const char* ifName);
 void getLinuxInterfaceInfo(LinuxInterfaceInfo *info, const char *ifName);
 
 /* check for interface changes */
-int monitorLinuxInterface(LinuxInterfaceInfo *info, const bool quiet);
+unsigned int monitorLinuxInterface(LinuxInterfaceInfo *info, const bool quiet);
 
 #endif /* CCK_NET_UTILS_LINUX_H_ */

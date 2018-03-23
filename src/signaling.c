@@ -56,7 +56,7 @@ static void handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming,
 static Boolean prepareSMRequestUnicastTransmission(MsgSignaling* outgoing, UnicastGrantData *grant, PtpClock* ptpClock);
 static Boolean prepareSMCancelUnicastTransmission(MsgSignaling* outgoing, UnicastGrantData* grant, PtpClock* ptpClock);
 static void requestUnicastTransmission(UnicastGrantData *grant, UInteger32 duration, const GlobalConfig* global, PtpClock* ptpClock);
-static void issueSignaling(MsgSignaling *outgoing, void *destination, const const GlobalConfig *global, PtpClock *ptpclock);
+static void issueSignaling(MsgSignaling *outgoing, void *destination, const GlobalConfig *global, PtpClock *ptpclock);
 static void cancelNodeGrants(UnicastGrantTable *nodeTable, const GlobalConfig *global, PtpClock *ptpClock);
 
 /* Return unicast grant array index for given message type */
@@ -960,7 +960,7 @@ requestUnicastTransmission(UnicastGrantData *grant, UInteger32 duration, const G
 }
 
 void
-cancelUnicastTransmission(UnicastGrantData* grant, const const GlobalConfig* global, PtpClock* ptpClock)
+cancelUnicastTransmission(UnicastGrantData* grant, const GlobalConfig* global, PtpClock* ptpClock)
 {
 
 /* todo: dbg sending */
@@ -980,7 +980,7 @@ cancelUnicastTransmission(UnicastGrantData* grant, const const GlobalConfig* glo
 }
 
 static void
-issueSignaling(MsgSignaling *outgoing, void *destination, const const GlobalConfig *global,
+issueSignaling(MsgSignaling *outgoing, void *destination, const GlobalConfig *global,
 		PtpClock *ptpClock)
 {
 

@@ -195,79 +195,6 @@ snprint_ClockIdentity_mac(char *s, int max_len, const ClockIdentity id)
 	return len;
 }
 
-
-/*
- * wrapper that caches the latest value of ether_ntohost
- * this function will NOT check the last accces time of /etc/ethers,
- * so it only have different output on a failover or at restart
- *
- */
-int ether_ntohost_cache(char *hostname, struct ether_addr *addr)
-{
-	static int valid = 0;
-	static struct ether_addr prev_addr;
-	static char buf[BUF_SIZE];
-
-#ifdef HAVE_STRUCT_ETHER_ADDR_OCTET
-	if (memcmp(addr->octet, &prev_addr,
-		  sizeof(struct ether_addr )) != 0) {
-		valid = 0;
-	}
-#else
-	if (memcmp(addr->ether_addr_octet, &prev_addr,
-		  sizeof(struct ether_addr )) != 0) {
-		valid = 0;
-	}
-#endif
-	if (!valid) {
-		if(ether_ntohost(buf, addr)){
-			snprintf(buf, BUF_SIZE,"%s", "unknown");
-		}
-
-		/* clean possible commas from the string */
-		while (strchr(buf, ',') != NULL) {
-			*(strchr(buf, ',')) = '_';
-		}
-
-		prev_addr = *addr;
-	}
-
-	valid = 1;
-	strncpy(hostname, buf, 100);
-	return 0;
-}
-
-
-/* Show the hostname configured in /etc/ethers */
-int
-snprint_ClockIdentity_ntohost(char *s, int max_len, const ClockIdentity id)
-{
-	int len = 0;
-	int i,j;
-	char  buf[100];
-	struct ether_addr e;
-
-	/* extract mac address */
-	for (i = 0, j = 0; i< CLOCK_IDENTITY_LENGTH ; i++ ){
-		/* skip bytes 3 and 4 */
-		if(!((i==3) || (i==4))){
-#ifdef HAVE_STRUCT_ETHER_ADDR_OCTET
-			e.octet[j] = (uint8_t) id[i];
-#else
-			e.ether_addr_octet[j] = (uint8_t) id[i];
-#endif
-			j++;
-		}
-	}
-
-	/* convert and print hostname */
-	ether_ntohost_cache(buf, &e);
-	len += snprintf(&s[len], max_len - len, "(%s)", buf);
-
-	return len;
-}
-
-
 int
 snprint_PortIdentity(char *s, int max_len, const PortIdentity *id)
 {
@@ -278,8 +205,6 @@ snprint_PortIdentity(char *s, int max_len, const PortIdentity *id)
 #else	
 	len += snprint_ClockIdentity(&s[len], max_len - len, id->clockIdentity);
 #endif
-
-	len += snprint_ClockIdentity_ntohost(&s[len], max_len - len, id->clockIdentity);
 
 	len += snprintf(&s[len], max_len - len, "/%d", (unsigned) id->portNumber);
 	return len;

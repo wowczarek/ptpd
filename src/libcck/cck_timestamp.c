@@ -331,7 +331,7 @@ tsAbs(CckTimestamp *r)
 static bool
 tsIsNegative(const CckTimestamp *p)
 {
-	return (p->seconds < 0) || (p->nanoseconds < 0);
+	return ((p->seconds < 0) || (p->nanoseconds < 0));
 }
 
 static bool

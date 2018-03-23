@@ -80,7 +80,8 @@ AC_SEARCH_LIBS([clock_gettime], [rt])
 AC_SEARCH_LIBS([timer_create], [rt])
 AC_SEARCH_LIBS([connect], [socket])
 AC_SEARCH_LIBS([gethostbyname], [nsl])
-
+AC_SEARCH_LIBS([glob], [android-glob])
+AC_SEARCH_LIBS([__android_log_print], [log])
 
 # Checks for header files.
 AC_HEADER_STDC
@@ -257,7 +258,7 @@ case $host in
     AC_CHECK_HEADERS([libdlpi.h],
 		    [
 			AC_MSG_CHECKING([for libdlpi library])
-			if test "$have_libdlpi" == "true"; then
+			if test "$have_libdlpi" = "true"; then
 			    AC_MSG_RESULT([-ldlpi])
 			elif test -f "/lib/libdlpi.so.1"; then
 			    have_libdlpi="true"
@@ -280,7 +281,7 @@ case $host in
     ;;
 esac
 
-AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_DLPI], [test "$have_libdlpi" == "true"])
+AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_DLPI], [test "$have_libdlpi" = "true"])
 
 
 is_linux=false
@@ -291,10 +292,10 @@ case $host in
 ;;
 esac
 
-AM_CONDITIONAL([LINUX], [test "$is_linux" == "true" ])
-AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_SOCK_RAWETH], [test "$is_linux" == "true" ])
-AM_CONDITIONAL([CCK_BUILD_DAEMON], [test "$have_daemon" == "false" ])
-AM_CONDITIONAL([CCK_BUILD_SOLARIS_GETIFADDRS], [test "$have_ifaddrs_h" == "false"])
+AM_CONDITIONAL([LINUX], [test "$is_linux" = "true" ])
+AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_SOCK_RAWETH], [test "$is_linux" = "true" ])
+AM_CONDITIONAL([CCK_BUILD_DAEMON], [test "$have_daemon" = "false" ])
+AM_CONDITIONAL([CCK_BUILD_SOLARIS_GETIFADDRS], [test "$have_ifaddrs_h" = "false"])
 
 # LibCCK conditional component build checks
 
@@ -305,13 +306,13 @@ case $host in
 *solaris*)
 
 
-	    AS_IF([test "$have_ifaddrs_h" == "false"],
+	    AS_IF([test "$have_ifaddrs_h" = "false"],
 		[
 		    AC_DEFINE([CCK_BUILD_SOLARIS_GETIFADDRS], [1], [Build internal getifaddrs() implementation on Solaris])
 		]
 	    )
 
-	    AS_IF([test "$have_libdlpi" == "true"],
+	    AS_IF([test "$have_libdlpi" = "true"],
 		[
 		    AC_DEFINE([CCK_BUILD_TTRANSPORT_DLPI], [1], [Build libdlpi transports on Solaris])
 		]
@@ -331,7 +332,7 @@ case $host in
 	    AC_CHECK_DECLS([ADJ_SETOFFSET], [], [], [[#include <linux/timex.h>]])
 	    AC_CHECK_DECLS([MSG_ERRQUEUE], [], [build_linuxphc=false], [[#include <sys/socket.h>]])
 
-	    AS_IF([test "$build_linuxphc" == "true"],
+	    AS_IF([test "$build_linuxphc" = "true"],
 		[
 		    AC_DEFINE([CCK_BUILD_TTRANSPORT_LINUXTS], [1], [Build LibCCK Linux timestamping transports])
 		    AC_DEFINE([CCK_BUILD_CLOCKDRIVER_LINUXPHC], [1], [Build LibCCK Linux PHC clock driver])
@@ -341,26 +342,26 @@ case $host in
     ;;
 esac
 
-AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_LINUXTS], [test "$build_linuxphc" == "true"])
-AM_CONDITIONAL([CCK_BUILD_CLOCKDRIVER_LINUXPHC], [test "$build_linuxphc" == "true"])
+AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_LINUXTS], [test "$build_linuxphc" = "true"])
+AM_CONDITIONAL([CCK_BUILD_CLOCKDRIVER_LINUXPHC], [test "$build_linuxphc" = "true"])
 
 build_timerfd=true
 AC_CHECK_HEADERS([sys/timerfd.h], [], [build_timerfd=false], [])
-AS_IF([test "$build_timerfd" == "true"],
+AS_IF([test "$build_timerfd" = "true"],
 	[
 	    AC_DEFINE([CCK_BUILD_TIMER_TIMERFD], [1], [Build LibCCK timer FD timer])
 	]
     )
-AM_CONDITIONAL([CCK_BUILD_TIMER_TIMERFD], [test "$build_timerfd" == "true"])
+AM_CONDITIONAL([CCK_BUILD_TIMER_TIMERFD], [test "$build_timerfd" = "true"])
 
 build_itimer=true
 AC_CHECK_FUNCS([setitimer], [], [build_itimer=false])
-AS_IF([test "$build_itimer" == "true"],
+AS_IF([test "$build_itimer" = "true"],
 	[
 	    AC_DEFINE([CCK_BUILD_TIMER_ITIMER], [1], [Build LibCCK timer itimer])
 	]
     )
-AM_CONDITIONAL([CCK_BUILD_TIMER_ITIMER], [test "$build_itimer" == "true"])
+AM_CONDITIONAL([CCK_BUILD_TIMER_ITIMER], [test "$build_itimer" = "true"])
 
 AC_MSG_NOTICE([************************************************************])
 AC_MSG_NOTICE([* PTPD BUILD FLAG AND LIBRARY DEPENDENCY CHECKS START HERE *])
@@ -414,7 +415,7 @@ case "$build_posix_timers" in
 	;;
 esac
 
-AM_CONDITIONAL([CCK_BUILD_TIMER_POSIX], [test "$build_posix_timers" == "true" ])
+AM_CONDITIONAL([CCK_BUILD_TIMER_POSIX], [test "$build_posix_timers" = "true" ])
 
 AC_ARG_WITH(
     [pcap-config],
@@ -589,13 +590,13 @@ case "$try_pcap" in
 
 esac
 
-AS_IF([test "$build_pcap" == "true"],
+AS_IF([test "$build_pcap" = "true"],
 	[
 	    AC_DEFINE([CCK_BUILD_TTRANSPORT_PCAP], [1], [Build LibCCK libpcap transports])
 	]
 	[]
     )
-AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_PCAP], [test "$build_pcap" == "true"])
+AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_PCAP], [test "$build_pcap" = "true"])
 
 AC_ARG_WITH(
     [net-snmp-config],

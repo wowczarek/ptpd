@@ -983,7 +983,7 @@ testInterface(const char* ifName, const int family, const char* sourceHint)
  *  provides event status (went up, went down, fault, fault cleared, major change, or no change)
  */
 
-int
+unsigned int
 monitorInterface(CckInterfaceInfo *last, const CckTransportAddress *sourceHint, const bool quiet)
 {
 
@@ -992,7 +992,7 @@ monitorInterface(CckInterfaceInfo *last, const CckTransportAddress *sourceHint, 
     int ret = 0;
 
     if(!last) {
-	return -1;
+	return 0;
     }
 
     /* no point monitoring without previous data */
@@ -1060,17 +1060,6 @@ gameover:
     return ret;
 
 }
-
-#define CCK_INTINFO_OK		1 << 0		/* A-OK */
-#define CCK_INTINFO_DOWN	1 << 1		/* Down (was up) */
-#define CCK_INTINFO_FAULT	1 << 2		/* Fault (was OK) */
-
-/* monitor result / events */
-#define CCK_INTINFO_NOCHANGE	1 << 3		/* Same status as previously */
-#define CCK_INTINFO_CHANGE	1 << 4		/* Change occurred (mostly address change) */
-#define CCK_INTINFO_UP		1 << 5		/* Up (was down) */
-#define CCK_INTINFO_CLEAR	1 << 6		/* Fault cleared (was fault) */
-#define CCK_INTINFO_CLOCKCHANGE 1 << 7		/* minor topology change */
 
 /* get a string representing the statuses above */
 const char*

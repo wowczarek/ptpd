@@ -129,7 +129,6 @@ clockDriver_init(ClockDriver* self, const void *userData) {
     CCK_GET_PCONFIG(ClockDriver, linuxphc, self, myConfig);
 
     struct ptp_clock_caps caps;
-
     char* initData = (char*)userData;
 
     if(strlen(initData) > 0) {
@@ -497,6 +496,7 @@ getSystemClockOffset(ClockDriver *self, CckTimestamp *output)
 
     struct ptp_clock_time *samples;
     struct ptp_sys_offset sof;
+    memset(&sof, 0, sizeof(sof));
 
     sof.n_samples = OSCLOCK_OFFSET_SAMPLES;
 

@@ -601,11 +601,6 @@ transportAddressFromString_ethernet (CckTransportAddress *out, const char *addre
     clearTransportAddress(out);
     out->family = TT_FAMILY_ETHERNET;
 
-    if(!ether_hostton(address, &out->addr.ether)) {
-	out->populated = true;
-	return true;
-    }
-
     if(strlen(address) > TT_STRADDRLEN_ETHERNET) {
 	CCK_ERROR("transportAddressFromString(%s): Ethernet address too long\n", address);
 	return false;

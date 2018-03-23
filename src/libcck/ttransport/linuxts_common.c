@@ -91,11 +91,13 @@ static const OptionName rxFilters_ethernet[] = {
     {-1}
 };
 
+/*
 static const OptionName txTypes[] = {
     { HWTSTAMP_TX_ON, "HWTSTAMP_TX_ON"},
     { HWTSTAMP_TX_ONESTEP_SYNC, "HWTSTAMP_TX_ONESTEP_SYNC"},
     {-1}
 };
+*/
 
 static bool checkRxFilter(uint32_t filter, int family);
 static bool testLinuxTimestamping(LinuxTsInfo *info, const char *ifName, int family, const bool preferHw, const bool quiet);

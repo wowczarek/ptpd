@@ -91,7 +91,7 @@ typedef struct {
 /* interface monitor / status flags */
 
 /* actual status */
-#define CCK_INTINFO_OK		1 << 0		/* A-OK */
+#define CCK_INTINFO_OK		(1 << 0)		/* A-OK */
 #define CCK_INTINFO_DOWN	1 << 1		/* Down (was up) */
 #define CCK_INTINFO_FAULT	1 << 2		/* Fault (was OK) */
 
@@ -116,7 +116,7 @@ typedef struct {
     bool sourceFound;			/* requested address found */
     int flags;				/* getInterfaceFlags() */
     int index;				/* getInterfaceIndex() */
-    int status;				/* last monitorInterface() status */
+    unsigned int status;		/* last monitorInterface() status */
     bool valid;				/* has been updated */
 } CckInterfaceInfo;
 
@@ -154,7 +154,7 @@ bool getInterfaceInfo(CckInterfaceInfo *info, const char* ifName, const int fami
 bool testInterface(const char* ifName, const int family, const char* sourceHint);
 
 /* compare current info with @last info for @interface, optional required source address @sourceHint, @return one of CCK_INTINFO */
-int monitorInterface(CckInterfaceInfo *last, const CckTransportAddress *sourceHint, const bool quiet);
+unsigned int monitorInterface(CckInterfaceInfo *last, const CckTransportAddress *sourceHint, const bool quiet);
 
 /* join or leave a multicast address */
 bool joinMulticast_ipv4(int fd, const CckTransportAddress *addr, const char *ifName, const CckTransportAddress *ownAddr, const bool join);

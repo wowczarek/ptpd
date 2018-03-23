@@ -3255,7 +3255,7 @@ static int populatePtpMon(char *buf, MsgHeader *header, PtpClock *ptpClock, cons
 
 		/* parentDS */
 		copyPortIdentity((PortIdentity*)&monresp->parentPortIdentity, &ptpClock->parentDS.parentPortIdentity);
-		monresp->PS = ptpClock->parentDS.parentStats;
+		monresp->PS = (PtpBoolean)ptpClock->parentDS.parentStats;
 		monresp->reserved = 0;
 		monresp->observedParentOffsetScaledLogVariance =
 				ptpClock->parentDS.observedParentOffsetScaledLogVariance;
@@ -3311,7 +3311,7 @@ static int populatePtpMon(char *buf, MsgHeader *header, PtpClock *ptpClock, cons
 	mtieresp = &tlv->body.ptpMonMtieResponse;
 
 	if(ptpClock->portDS.portState == PTP_SLAVE) {
-	    mtieresp->mtieValid = ptpClock->slaveStats.statsCalculated;
+	    mtieresp->mtieValid = (PtpBoolean)ptpClock->slaveStats.statsCalculated;
 	    if(mtieresp->mtieValid) {
 		mtieresp->windowNumber = ptpClock->slaveStats.windowNumber;
 		mtieresp->windowDuration = global->statsUpdateInterval;

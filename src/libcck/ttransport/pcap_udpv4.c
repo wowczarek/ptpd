@@ -686,7 +686,7 @@ getClockDriver(TTransport *self) {
 
 }
 
-static int
+static unsigned int
 monitor(TTransport *self, const int interval, const bool quiet) {
 
     CCK_GET_PCONFIG(TTransport, pcap_udpv4, self, myConfig);

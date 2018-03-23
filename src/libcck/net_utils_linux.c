@@ -266,13 +266,13 @@ void getLinuxInterfaceInfo(LinuxInterfaceInfo *info, const char *ifName)
  */
 
 
-int monitorLinuxInterface(LinuxInterfaceInfo *info, const bool quiet)
+unsigned int monitorLinuxInterface(LinuxInterfaceInfo *info, const bool quiet)
 {
 
     int ret = 0;
 
     if(!info) {
-	return -1;
+	return 0;
     }
 
     /* no point monitoring without previous data */

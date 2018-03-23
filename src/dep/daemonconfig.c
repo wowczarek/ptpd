@@ -2790,7 +2790,7 @@ loadCommandLineKeys(dictionary* dict, int argc,char** argv)
     for ( i=0; i<argc; i++) {
 
 	if( strlen(argv[i]) > 3 &&
-	    index(argv[i],':') != NULL ) {
+	    strchr(argv[i],':') != NULL ) {
 	/* check if the option is passed as sec:key=value */
 	if (sscanf(argv[i],"--%[-_a-zA-Z0-9:]=%s",key,val)==2 ||
 	    sscanf(argv[i],"-%[-_a-zA-Z0-9:]=%s",key,val)==2) {

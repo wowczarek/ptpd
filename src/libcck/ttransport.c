@@ -476,7 +476,7 @@ void monitorTTransport(TTransport *transport, const int interval) {
     if(!transport->fault) {
 
 	/* if fault has not gone away, previousFault is true (quiet) */
-	int res = transport->monitor(transport, interval, previousFault);
+	unsigned int res = transport->monitor(transport, interval, previousFault);
 
 	if (res & CCK_INTINFO_FAULT) {
 	    if(!(res & CCK_INTINFO_NOCHANGE)) {
