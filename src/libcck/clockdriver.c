@@ -615,7 +615,7 @@ processUpdate(ClockDriver *driver) {
 	driver->totalAdev = feedIntPermanentAdev(&driver->_totalAdev, driver->lastFrequency);
 
 	if(driver->servo.runningMaxOutput) {
-	    /*resetIntPermanentAdev(&driver->_adev);*/
+	    /* resetIntPermanentAdev(&driver->_adev); */
 	}
 	/* we have enough allan dev samples to represent adev period */
 	if( (driver->_tau > ZEROF) && ((driver->_adev.count * driver->_tau * driver->servo.delayFactor) 
@@ -650,7 +650,7 @@ processUpdate(ClockDriver *driver) {
 
 	    if((driver->state == CS_STEP) || (driver->state == CS_NEGSTEP)) {
 		update = false;
-	    } else {
+	    } else if (!driver->config.readOnly) {
 		if(driver->servo.runningMaxOutput) {
 		    driver->setState(driver, CS_TRACKING, CSR_QUALITY);
 		} else if(driver->adev <= driver->config.stableAdev) {
@@ -666,7 +666,9 @@ processUpdate(ClockDriver *driver) {
 	}
 
 	if(driver->state == CS_FREERUN) {
-	    driver->setState(driver, CS_TRACKING, CSR_SYNC);
+	    if(!driver->config.readOnly) {
+		driver->setState(driver, CS_TRACKING, CSR_SYNC);
+	    }
 	    update = true;
 	}
 
@@ -772,7 +774,7 @@ setReference(ClockDriver *a, ClockDriver *b) {
 	a->refClass = RC_NONE;
 	goto finalise;
     } else if (b != NULL) {
-	CCK_NOTICE(THIS_COMPONENT"Clock %s changing reference to %s\n", a->name, b->name);
+	CCK_NOTICE(THIS_COMPONENT"Clock %s changed reference from %s to %s\n", a->name, a->refClock == NULL ? "none" : a->refClock->name, b->name);
 	if(a->refClock == NULL) {
 	    a->lastRefClass = RC_NONE;
 	}
@@ -1164,9 +1166,9 @@ filterClock(ClockDriver *driver, double tau) {
 		/* we continue */
 		} else {
 #ifdef PTPD_CLOCK_SYNC_PROFILING
-		    CCK_INFO(THIS_COMPONENT"prof Clock %s -outlier Offset %.09f mads %.09f MAD %.09f\n", driver->name, dOffset, madd, driver->_madFilter->output);
+		    CCK_INFO(THIS_COMPONENT"prof Clock %s: outlier Offset %.09f mads %.09f MAD %.09f\n", driver->name, dOffset, madd, driver->_madFilter->output);
 #else
-		    CCK_DBG(THIS_COMPONENT"prof Clock %s -outlier Offset %.09f mads %.09f MAD %.09f\n", driver->name, dOffset, madd, driver->_madFilter->output);
+		    CCK_DBG(THIS_COMPONENT"prof Clock %s: outlier Offset %.09f mads %.09f MAD %.09f\n", driver->name, dOffset, madd, driver->_madFilter->output);
 #endif
 		    driver->_madFilter->lastBlocked = false;
 		    driver->_madFilter->consecutiveBlocked = 0;
@@ -1219,7 +1221,7 @@ disciplineClock(ClockDriver *driver, CckTimestamp offset, double tau) {
     tsOps.sub(&driver->refOffset, &driver->refOffset, &offsetCorrection);
 
     /* run filter if running internal reference, drop sample if filter discards it */
-    if(!driver->externalReference && !filterClock(driver, tau)) {
+    if((!driver->externalReference || driver->config.alwaysFilter) && !filterClock(driver, tau)) {
 	driver->rawOffset = driver->_lastOffset;
 	driver->refOffset = driver->_lastOffset;
 	return false;
@@ -1231,7 +1233,7 @@ disciplineClock(ClockDriver *driver, CckTimestamp offset, double tau) {
      * in fact all show the same frequency (or so it seems...)
      */
 
-    if(tsOps.isZero(&driver->refOffset)) {
+    if(tsOps.isZero(&driver->refOffset) || driver->config.readOnly) {
 	driver->lastFrequency = driver->getFrequency(driver);
 	driver->processUpdate(driver);
 	return true;

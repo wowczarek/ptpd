@@ -2191,9 +2191,11 @@ parseConfig ( int opCode, void *opArg, dictionary* dict, GlobalConfig *global )
 		PTPD_RESTART_FILTERS, INTTYPE_INT, &global->clockOutlierFilterBlockTimeout, global->clockOutlierFilterBlockTimeout,
 		"Maximum blocking time (seconds) before outlier filter is reset",RANGECHECK_RANGE,0,3600);
 
+	parseResult &= configMapBoolean(opCode, opArg, dict, target, "clock:filter_external_reference",
+		PTPD_RESTART_NONE, &global->clockFilterExternal, global->clockFilterExternal,
+		 "Apply clock offset filtering even to externally disciplined clocks (PTP, etc.).");
 
 	/* END inter-clock filter settings */
-
 
 	/* This really is clock specific - different clocks may allow different ranges */
 	parseResult &= configMapInt(opCode, opArg, dict, target, "clock:max_offset_ppm",

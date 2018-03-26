@@ -310,6 +310,7 @@ loadDefaultSettings( GlobalConfig* global )
 	global->clockMinStep = 10000;
 	global->clockCalibrationTime = 10;
 	global->clockFreqStepDetection = true;
+	global->clockFilterExternal = false;
 
 	global->masterFirstLock = false;
 	global->masterLockedOnly = false;

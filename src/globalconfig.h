@@ -217,6 +217,7 @@ typedef struct {
 	char disabledClocks[PATH_MAX];
 	char excludedClocks[PATH_MAX];
 	char noStepClocks[PATH_MAX];
+	Boolean clockFilterExternal; /* apply standard clock filter to clocks with an external reference */
 
 	bool masterFirstLock; /* do not enter master state until PTP clock locked */
 	bool masterLockedOnly; /* only run as master when PTP clock is locked or in holdover */

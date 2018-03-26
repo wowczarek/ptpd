@@ -300,6 +300,11 @@ doubleToFile(const char *filename, double input)
 	}
 
 	ret = fprintf(fp, "%f\n", input);
+
+	if(ret <= 0) {
+	    CCK_DBG("doubleToFile: could not write to %s (returned: %d): %s\n", filename, ret, strerror(errno));
+	}
+
 	fclose(fp);
 
 	return(ret > 0);

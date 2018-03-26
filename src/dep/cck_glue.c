@@ -93,6 +93,10 @@ configureClockDriver(ClockDriver *driver, const void *configData)
 	config->stepType = CSTEP_STARTUP_FORCE;
     }
 
+    if(global->clockFilterExternal) {
+	config->alwaysFilter = TRUE;
+    }
+
     config->disabled = (tokenInList(global->disabledClocks, driver->name, DEFAULT_TOKEN_DELIM)) ? TRUE:FALSE;
     config->excluded = (tokenInList(global->excludedClocks, driver->name, DEFAULT_TOKEN_DELIM)) ? TRUE:FALSE;
 

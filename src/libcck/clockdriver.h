@@ -163,6 +163,7 @@ typedef struct {
     bool storeToFile;			/* clock stores good frequency in a file */
     bool outlierFilter;			/* enable MAD-based outlier filter */
     bool statFilter;			/* enable statistical filter */
+    bool alwaysFilter;			/* filter if offset is being fed by an external reference */
     bool strictSync;			/* enforce sync to LOCKED and HOLDOVER only */
 
     bool stepDetection;			/*
