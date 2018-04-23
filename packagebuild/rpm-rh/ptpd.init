@@ -16,6 +16,14 @@ RETVAL=0
 PATH=/sbin:/usr/local/bin:$PATH
 DAEMON_DESC="IEEE 1588 Precision Time Protocol (v2) daemon"
 
+if [ -d /var/lock/subsys ]; then
+  # RedHat/CentOS/etc who use subsys
+  LOCKFILE="/var/lock/subsys/ptpd"
+else
+  # The rest of them
+  LOCKFILE="/var/lock/ptpd"
+fi
+
 . /etc/init.d/functions
 
 if test -e /etc/sysconfig/ptpd ; then
@@ -47,6 +55,7 @@ start() {
 
 	if [ "$RETVAL" -eq "0" ] 
 	then 
+	touch ${LOCKFILE}
 		echo_success
 	else
 		echo_failure
@@ -116,6 +125,7 @@ stop() {
 		if [ "$RETVAL" -eq "0" ] 
 		then 
 			echo "Stopping $DAEMON_DESC...`echo_success`"
+			rm -f ${LOCKFILE}
 		else
 			echo "Stopping $DAEMON_DESC...`echo_failure`"
 		fi
