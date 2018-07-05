@@ -828,7 +828,7 @@ static void setExternalReference(ClockDriver *a, const char* refName, int refCla
 	}
 
 	if(!a->externalReference || strncmp(a->refName, refName, CCK_COMPONENT_NAME_MAX)) {
-	    CCK_NOTICE(THIS_COMPONENT"Clock %s changing to external reference %s\n", a->name, refName);
+	    CCK_NOTICE(THIS_COMPONENT"Clock %s changed to external reference %s\n", a->name, refName);
 	    a->setState(a, CS_FREERUN, CSR_REFCHANGE);
 	}
 

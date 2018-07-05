@@ -65,6 +65,9 @@
 /* clamp a value to boundary */
 #define clamp(val,bound) ( (val > bound) ? bound : (val < -bound) ? -bound : val )
 
+/* size of a string to fit an int safely - log 2(10) ~ 3, room for error, sign, NUL */
+#define INT_STRSIZE (3 * sizeof(int) + 3)
+
 /* declare a string buffer of given length (+1) and initialise it */
 #ifndef tmpstr
 #define tmpstr(name, len) char name[len + 1];\
@@ -146,11 +149,23 @@ memset(name, 0, name ## _len);
     } \
     counter_##id++;
 
+/* simple debug markers */
 #if defined(__FILE__) && defined(__LINE__)
 #define CCK_MARKER(msg) CCK_INFO("Marker: %s: %s:%d\n", msg, __FILE__, __LINE__)
 #else
 #define CCK_MARKER(msg) CCK_INFO("Marker: %s\n", msg)
 #endif
+
+/* simple profiling / duration measurement - requires <libcck/clockdriver.h > */
+#define CCK_DINIT(name) CckTimestamp name, name##_t1, name##_t2;
+#define CCK_DSTART(name) getSystemClock()->getTimeMonotonic(getSystemClock(), &name##_t1);
+#define CCK_DEND(name) \
+	getSystemClock()->getTimeMonotonic(getSystemClock(), &name##_t2);\
+	tsOps.sub(&name, &name##_t2, &name##_t1);
+#define CCK_DPRINT(name, ...)\
+	CCK_DEND(name)\
+	printf(__VA_ARGS__);\
+	printf(": "CCK_TSFRMT"\n", CCK_TSDATA(&name));
 
 /* dump LibCCK version information */
 void cckVersion();

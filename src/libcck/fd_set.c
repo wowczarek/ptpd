@@ -200,7 +200,7 @@ getMaxFd(CckFdSet *set)
 	return -1;
     }
 
-    if(set->_first == NULL) {
+    if(set->_firstChild == NULL) {
 	return -1;
     }
 

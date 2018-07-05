@@ -589,8 +589,8 @@ receiveMessage(TTransport *self, TTransportMessage *message) {
     message->length = ret - self->headerLen;
 
     if(self->config.timestamping && !message->hasTimestamp) {
-	CCK_DBG(THIS_COMPONENT"receiveMessage(%s): Error: no timestamp received!\n",
-		    self->name);
+	CCK_DBG(THIS_COMPONENT"receiveMessage(%s): Error: no %s timestamp received!\n",
+		    self->name, txFlags ? "TX" : "RX");
 	self->counters.rxTimestampErrors++;
 	/* message with no timestamp considered harmful */
 	ret = 0;

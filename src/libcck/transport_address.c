@@ -845,8 +845,7 @@ freeCckTransportAddressList(CckTransportAddressList **list)
 	return;
     }
 
-    while((*list)->_first) {
-	item = (*list)->_last;
+    while((item = (*list)->_lastChild) != NULL) {
 	(*list)->remove(*list, item);
 	freeCckTransportAddress(&item);
     }
@@ -923,7 +922,7 @@ addrListRemove (CckTransportAddressList *list, CckTransportAddress *item)
     }
 
     /* item does not belong to the list */
-    if(*(item->_first) != list->_first) {
+    if(*(item->_first) != list->_firstChild) {
 	return false;
     }
 

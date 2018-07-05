@@ -108,6 +108,7 @@ getLinuxTsInfo(LinuxTsInfo *output, const struct ethtool_ts_info *source, const 
 
 	const OptionName *mode = NULL;
 	memset(output, 0, sizeof(LinuxTsInfo));
+	bool found = false;
 
 	/* check if we support all required s/w timestamping modes */
 	output->swTimestamping = true;
@@ -141,7 +142,6 @@ getLinuxTsInfo(LinuxTsInfo *output, const struct ethtool_ts_info *source, const 
 	    output->hwTsModes = 0;
 	}
 
-
 	/* no need to check further */
 	if(!output->hwTimestamping ) {
 	    return;
@@ -164,13 +164,13 @@ getLinuxTsInfo(LinuxTsInfo *output, const struct ethtool_ts_info *source, const 
 
 	output->hwTimestamping = false;
 	for( ; mode->value != -1; mode++) {
-	    bool found = false;
 	    if(source->rx_filters & (1 << mode->value) ) {
-		CCK_DBG("getLinuxTsInfo(%s): Interface supports RX filter %s\n", ifName, mode->name);
+		CCK_DBG("getLinuxTsInfo(%s): Interface supports RX filter %s (%d)\n", ifName, mode->name, mode->value);
 		if(!found) {
 		    output->rxFilter = mode->value;
 		    found = true;
 		    output->hwTimestamping = true;
+		    CCK_DBG("getLinuxTsInfo(%s): Selected RX filter %s (%d)\n", ifName, mode->name, mode->value);
 		}
 	    } else {
 		CCK_DBG("getLinuxTsInfo(%s): No support for RX filter %s\n", ifName, mode->name);
@@ -305,9 +305,12 @@ initHwTimestamping(LinuxTsInfo *info, const char *ifName, const int family, cons
 	/* if the driver has changed the RX filter, check if we can use what we got */
 	if(config.rx_filter != info->rxFilter) {
 	    /* Some drivers return HWTSTAMP_FILTER_SOME - apparently "what we requested plus more". */
-	    if(checkRxFilter(config.rx_filter, family) || config.rx_filter == HWTSTAMP_FILTER_SOME ) {
+	    if(checkRxFilter(config.rx_filter, family)) {
 		CCK_WARNING("initHwTimestamping(%s): Interface changed hardware receive filter type from %d to %d - still acceptable\n",
 		ifName, info->rxFilter, config.rx_filter);
+	    } else if(config.rx_filter == HWTSTAMP_FILTER_SOME ) {
+		CCK_WARNING("initHwTimestamping(%s): Interface changed hardware receive filter type from %d to HWTSTAMP_FILTER_SOME - still acceptable\n",
+		ifName, info->rxFilter);
 	    /* nope. */
 	    } else {
 		CCK_ERROR("initHwTimestamping(%s): Interface changed hardware received filter type from %d to %d - cannot continue\n",
