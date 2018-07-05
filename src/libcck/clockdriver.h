@@ -53,6 +53,7 @@
 #define CLOCKDRIVER_FREQEST_MIN_TAU 2		/* ensure that frequency is estimated for at least 2 tau */
 #define SYSTEM_CLOCK_NAME "syst"		/* predefined system clock name */
 #define CLOCKDRIVER_FREQFILE_PREFIX "clock"	/* frequency file prefix */
+#define CCK_CLOCKDRIVER_PATH_NAME_MAX 10	/* maximum clock driver name length copied from spec path */
 
 /* how many next sync updates to skip after a change or failover */
 #define CLOCKDRIVER_CHANGE_SKIP_SYNC 10

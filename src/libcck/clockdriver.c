@@ -308,7 +308,7 @@ createClockDriversFromString(const char* list, bool (*pushConfig) (ClockDriver *
 	    namelen = strlen(spec.name);
 
 	    if( (namelen <= 0) && (pathlen > 0) ) {
-		strncpy(spec.name, spec.path + ( pathlen <= 5 ? 0 : pathlen - 5), CCK_COMPONENT_NAME_MAX);
+		strncpy(spec.name, spec.path + ( pathlen <= CCK_CLOCKDRIVER_PATH_NAME_MAX ? 0 : pathlen - CCK_CLOCKDRIVER_PATH_NAME_MAX), CCK_COMPONENT_NAME_MAX);
 	    }
 
 	    namelen = strlen(spec.name);
