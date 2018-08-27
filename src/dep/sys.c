@@ -624,18 +624,20 @@ logStatistics(PtpClock * ptpClock)
 	if (global->statisticsTimestamp == TIMESTAMP_DATETIME ||
 	    global->statisticsTimestamp == TIMESTAMP_BOTH) {
 	    strftime(time_str, MAXTIMESTR, "%Y-%m-%d %X", localtime(&time_s));
-	    len += snprintf(sbuf + len, sizeof(sbuf) - len, "%s.%06d, %s, ",
-		       time_str, (int)now.nanoseconds/1000, /* Timestamp */
-		       translatePortState(ptpClock)); /* State */
+	    len += snprintf(sbuf + len, sizeof(sbuf) - len, "%s.%06d, ",
+		       time_str, (int)now.nanoseconds/1000); /* Timestamp */
 	}
 
 	/* output unix timestamp s.ns if configured */
 	if (global->statisticsTimestamp == TIMESTAMP_UNIX ||
 	    global->statisticsTimestamp == TIMESTAMP_BOTH) {
-	    len += snprintf(sbuf + len, sizeof(sbuf) - len, "%d.%06d, %s,",
-		       now.seconds, now.nanoseconds, /* Timestamp */
-		       translatePortState(ptpClock)); /* State */
+	    len += snprintf(sbuf + len, sizeof(sbuf) - len, "%d.%06d, ",
+		       now.seconds, now.nanoseconds); /* Timestamp */
 	}
+
+        /* output State */
+            len += snprintf(sbuf + len, sizeof(sbuf) - len, "%s, ",
+                       translatePortState(ptpClock)); /* State */
 
 	if (ptpClock->portDS.portState == PTP_SLAVE) {
 		len += snprint_PortIdentity(sbuf + len, sizeof(sbuf) - len,
@@ -694,6 +696,8 @@ logStatistics(PtpClock * ptpClock)
 			       ptpClock->slaveStats.mpdStdDev * 1E9,
 			       ptpClock->slaveStats.ofmMean,
 			       ptpClock->slaveStats.ofmStdDev * 1E9);
+
+                len += snprintf(sbuf + len, sizeof(sbuf) - len, ", 0, 0, "); /* zero out "Observed Drift Mean","Observed Drift Std Dev" */
 /*
 		len += snprintf(sbuf + len, sizeof(sbuf) - len, ", %.0f, %.0f, ",
 			       ptpClock->servo.driftMean,
