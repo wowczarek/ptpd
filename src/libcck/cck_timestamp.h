@@ -45,6 +45,7 @@
 #endif /* HAVE_SYS_TYPES_H */
 
 #define CCK_TIMESTAMP_STRLEN 30
+#define CCK_TIMESCALE_STRLEN 3
 
 /* timescale definitions */
 #define TO_GPS_TAI	19	/* as of 6 Jan 1980, wink wink, nudge nudge */
@@ -100,8 +101,9 @@ getTimescaleName((var)->timescale)
 #define NS_PER_SEC 1E9
 
 typedef struct {
-	int32_t		seconds;
-	int32_t		nanoseconds;
+	int64_t		seconds;
+	int64_t		nanoseconds;
+	int32_t		subns;
 	int		timescale;
 } CckTimestamp;
 
@@ -114,9 +116,13 @@ typedef struct {
 /* a collection of timestamp operations */
 typedef struct {
 	void (*add) (CckTimestamp *, const CckTimestamp *, const CckTimestamp *);
+	CckTimestamp (*sum) (const CckTimestamp *, const CckTimestamp *);
 	void (*sub) (CckTimestamp *, const CckTimestamp *, const CckTimestamp *);
+	CckTimestamp (*diff) (const CckTimestamp *, const CckTimestamp *);
 	double (*toDouble) (const CckTimestamp *);
+	double (*toDoubleNs) (const CckTimestamp*);
 	CckTimestamp (*fromDouble) (const double);
+	CckTimestamp (*fromDoubleNs) (const double);
 	void (*div2) (CckTimestamp *);
 	void (*clear) (CckTimestamp *);
 	CckTimestamp (*negative) (const CckTimestamp *);

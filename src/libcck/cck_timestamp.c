@@ -65,9 +65,13 @@ static const char* timescaleNames[TS_MAX] = {
 };
 
 static void tsAdd (CckTimestamp *, const CckTimestamp *, const CckTimestamp *);
+static CckTimestamp tsSum(const CckTimestamp *, const CckTimestamp *);
 static void tsSub (CckTimestamp *, const CckTimestamp *, const CckTimestamp *);
+static CckTimestamp tsDiff(const CckTimestamp *, const CckTimestamp *);
 static double tsToDouble (const CckTimestamp *);
+static double tsToDoubleNs (const CckTimestamp *);
 static CckTimestamp tsFromDouble (const double);
+static CckTimestamp tsFromDoubleNs (const double);
 static void tsDiv2 (CckTimestamp *);
 static void tsClear (CckTimestamp *);
 static CckTimestamp tsNegative (const CckTimestamp *);
@@ -83,9 +87,13 @@ static void tsNorm (CckTimestamp *);
 
 const CckTimestampOps tsOps = {
 	.add =		tsAdd,
+	.sum =		tsSum,
 	.sub =		tsSub,
+	.diff =		tsDiff,
 	.toDouble =	tsToDouble,
+	.toDoubleNs =	tsToDoubleNs,
 	.fromDouble =	tsFromDouble,
+	.fromDoubleNs =	tsFromDoubleNs,
 	.div2 =		tsDiv2,
 	.clear =	tsClear,
 	.negative =	tsNegative,
@@ -195,7 +203,7 @@ getTimescaleType(const char* name)
     }
 
     for(int i = TS_MIN; i < TS_MAX; i++) {
-	if(!strcmp(name, timescaleNames[i])) {
+	if(!strncmp(name, timescaleNames[i], CCK_TIMESCALE_STRLEN)) {
 	    return i;
 	}
     }
@@ -244,8 +252,17 @@ static double
 tsToDouble(const CckTimestamp * p)
 {
 
-	double sign = (p->seconds < 0 || p->nanoseconds < 0 ) ? -1.0 : 1.0;
-	return (sign * ( abs(p->seconds) + abs(p->nanoseconds) / 1E9 ));
+	double sign = (p->seconds < 0 || p->nanoseconds < 0 || p->subns < 0) ? -1.0 : 1.0;
+	return sign * ( (abs(p->seconds)+0.0) + (abs(p->nanoseconds) + 0.0) * 1E-9 + ((abs(p->subns) * 1000.0) / 65535.0) * 1E-12);
+
+}
+
+static double
+tsToDoubleNs(const CckTimestamp * p)
+{
+
+	double sign = (p->seconds < 0 || p->nanoseconds < 0 || p->subns < 0) ? -1.0 : 1.0;
+	return sign * ( (abs(p->seconds)+0.0) * 1E9 + (abs(p->nanoseconds) + 0.0) + abs(p->subns) / 65535.0 );
 
 }
 
@@ -253,20 +270,42 @@ static CckTimestamp
 tsFromDouble(const double d)
 {
 
-	CckTimestamp t = {0, 0};
-
+	double tmp = d;
+	CckTimestamp t = {0, 0, 0};
 	t.seconds = trunc(d);
-	t.nanoseconds = (d - (t.seconds + 0.0)) * 1E9;
-
+	tmp -= (t.seconds + 0.0);
+	tmp *= 1E9;
+	t.nanoseconds = trunc(tmp);
+	tmp -= (t.nanoseconds + 0.0);
+	t.subns = 65535.0 * tmp;
 	return t;
 
+}
+
+static CckTimestamp
+tsFromDoubleNs(const double d)
+{
+	return tsFromDouble(d * 1E-9);
 }
 
 static void
 tsNorm(CckTimestamp * r)
 {
-	r->seconds += r->nanoseconds / 1000000000;
-	r->nanoseconds -= (r->nanoseconds / 1000000000) * 1000000000;
+
+	r->nanoseconds += (r->subns >> 16);
+	r->subns &= 0xFFFF;
+
+	int64_t overflow = r->nanoseconds / 1000000000;
+	r->seconds += overflow;
+	r->nanoseconds -= overflow * 1000000000;
+
+	if(r->nanoseconds > 0 && r->subns < 0) {
+	    r->nanoseconds -= 1;
+	    r->subns += 65536;
+	} else if (r->nanoseconds < 0 && r->subns < 0) {
+	    r->nanoseconds += 1;
+	    r->subns += 65536;
+	}
 
 	if (r->seconds > 0 && r->nanoseconds < 0) {
 		r->seconds -= 1;
@@ -282,8 +321,18 @@ tsAdd(CckTimestamp * r, const CckTimestamp * x, const CckTimestamp * y)
 {
 	r->seconds = x->seconds + y->seconds;
 	r->nanoseconds = x->nanoseconds + y->nanoseconds;
+	r->subns = x->subns + y->subns;
 
 	tsNorm(r);
+}
+
+static CckTimestamp
+tsSum(const CckTimestamp * x, const CckTimestamp * y)
+{
+    CckTimestamp r;
+    tsAdd(&r, x, y);
+    tsNorm(&r);
+    return r;
 }
 
 static void
@@ -291,8 +340,18 @@ tsSub(CckTimestamp * r, const CckTimestamp * x, const CckTimestamp * y)
 {
 	r->seconds = x->seconds - y->seconds;
 	r->nanoseconds = x->nanoseconds - y->nanoseconds;
+	r->subns = x->subns - y->subns;
 
 	tsNorm(r);
+}
+
+static CckTimestamp
+tsDiff(const CckTimestamp * x, const CckTimestamp * y)
+{
+    CckTimestamp r;
+    tsSub(&r, x, y);
+    tsNorm(&r);
+    return r;
 }
 
 static void
@@ -300,7 +359,9 @@ tsDiv2(CckTimestamp *r)
 {
 	r->nanoseconds += (r->seconds % 2) * 1000000000;
 	r->seconds /= 2;
+	r->subns += (r->nanoseconds % 2) * 65536;
 	r->nanoseconds /= 2;
+	r->subns /= 2;
 
 	tsNorm(r);
 }
@@ -315,7 +376,7 @@ tsClear(CckTimestamp *r)
 static CckTimestamp
 tsNegative(const CckTimestamp *time)
 {
-    CckTimestamp neg = {-time->seconds, -time->nanoseconds};
+    CckTimestamp neg = {-time->seconds, -time->nanoseconds, -time->subns};
     return neg;
 }
 
@@ -326,18 +387,19 @@ tsAbs(CckTimestamp *r)
 	tsNorm(r);
 	r->seconds       = abs(r->seconds);
 	r->nanoseconds   = abs(r->nanoseconds);
+	r->subns         = abs(r->subns);
 }
 
 static bool
 tsIsNegative(const CckTimestamp *p)
 {
-	return ((p->seconds < 0) || (p->nanoseconds < 0));
+	return ((p->seconds < 0) || (p->nanoseconds < 0) || (p->subns < 0));
 }
 
 static bool
 tsIsZero(const CckTimestamp *time)
 {
-    return(!time->seconds && !time->nanoseconds);
+    return(!time->seconds && !time->nanoseconds && !time->subns);
 }
 
 
