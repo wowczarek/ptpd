@@ -318,8 +318,12 @@ tTransport_shutdown(TTransport *self) {
     }
 
     /* close the pcap handles */
-    pcap_close(myData->readerHandle);
-    pcap_close(myData->writerHandle);
+    if(myData->readerHandle != NULL) {
+	pcap_close(myData->readerHandle);
+    }
+    if(myData->writerHandle != NULL) {
+	pcap_close(myData->writerHandle);
+    }
 
     self->myFd.fd = -1;
 

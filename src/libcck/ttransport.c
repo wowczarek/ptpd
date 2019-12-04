@@ -128,6 +128,7 @@ createTTransport(const int type, const char* name) {
     if(!setupTTransport(transport, type, name)) {
 	if(transport != NULL) {
 	    free(transport);
+	    transport = NULL;
 	}
 	return NULL;
     } else {
@@ -251,7 +252,9 @@ freeTTransport(TTransport** transport) {
 
     CCK_DBG(THIS_COMPONENT"Deleted transport type %d name %s serial %d\n", ptransport->type, ptransport->name, ptransport->_serial);
 
-    free(*transport);
+    if(*transport != NULL) {
+	free(*transport);
+    }
 
     *transport = NULL;
 
@@ -448,6 +451,7 @@ void
 shutdownTTransports() {
 
 	TTransport *tt;
+
 	LL_DESTROYALL(tt, freeTTransport);
 
 }

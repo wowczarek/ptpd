@@ -387,7 +387,9 @@ tTransport_shutdown(TTransport *self) {
     self->myFd.fd = -1;
 
     /* close the pcap handle */
-    pcap_close(myData->readerHandle);
+    if(myData->readerHandle != NULL) {
+	pcap_close(myData->readerHandle);
+    }
 
     if(self->_init) {
 	CCK_INFO(THIS_COMPONENT"Transport '%s' (%s) shutting down\n", self->name, myConfig->common.interface);
