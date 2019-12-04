@@ -94,11 +94,11 @@ integer64_to_internalTime(Integer64 bigint, TimeInternal * internal)
 
 
 void
-fromInternalTime(const TimeInternal * internal, Timestamp * external)
+toOriginTimestamp(Timestamp * external, const TimeInternal * internal)
 {
 
 	/*
-	 * fromInternalTime is only used to convert time given by the system
+	 * toOriginTimestamp is only used to convert time given by the system
 	 * to a timestamp.  As a consequence, no negative value can normally
 	 * be found in (internal)
 	 *
@@ -119,7 +119,7 @@ fromInternalTime(const TimeInternal * internal, Timestamp * external)
 }
 
 void
-toInternalTime(TimeInternal * internal, const Timestamp * external)
+fromOriginTimestamp(TimeInternal * internal, const Timestamp * external)
 {
 
 	/* Program will not run after 2038... */
@@ -225,8 +225,8 @@ div2Time(TimeInternal *r)
 void
 clearTime(TimeInternal *r)
 {
-	r->seconds     = 0;
-	r->nanoseconds = 0;
+	memset(r, 0, sizeof(TimeInternal));
+
 }
 
 
@@ -315,24 +315,11 @@ isTimeZero(const TimeInternal *time)
     return(!time->seconds && !time->nanoseconds);
 }
 
-void timeDelta(TimeInternal *before, TimeInternal *meas, TimeInternal *after, TimeInternal *delta)
-{
-
-	TimeInternal tmpDelta;
-
-	div2Time(before);
-	div2Time(after);
-	addTime(&tmpDelta, before, after);
-	subTime(delta, &tmpDelta, meas);
-
-}
-
-
 int
 check_timestamp_is_fresh(const TimeInternal * timeA)
 {
 	TimeInternal timeB;
-	getSystemClock()->getTime(getSystemClock(), &timeB);
+	getSystemTime(&timeB);
 
 	return check_timestamp_is_fresh2(timeA, &timeB);
 }
@@ -349,7 +336,7 @@ secondsToMidnight(void)
 {
 	TimeInternal now;
 	double stm, ret;
-	getSystemClock()->getTime(getSystemClock(), &now);
+	getSystemTime(&now);
 	stm = 86400.0 - (now.seconds % 86400);
 	ret =  (stm - now.nanoseconds / 1E9);
 	return ret;

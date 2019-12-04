@@ -28,7 +28,7 @@
  * @file   globalconfig.h
  * @date   Sat Jan 9 16:14:10 2015
  *
- * @brief  Global daemon configuration structure: RunTimeOpts
+ * @brief  Global daemon configuration structure: GlobalConfig
  *
  */
 
@@ -37,12 +37,34 @@
 #ifndef PTPD_GLOBALCONFIG_H_
 #define PTPD_GLOBALCONFIG_H_
 
+#include <config.h>
+
+#include "ptp_primitives.h"
+#include "ptp_datatypes.h"
+#include "dep/constants_dep.h"
+#include "dep/datatypes_dep.h"
+#include "dep/iniparser/dictionary.h"
+#include "dep/outlierfilter.h"
+#include "dep/ntpengine/ntpoptions.h"
+
+#include <sys/param.h>
+
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif /* HAVE_SYS_SOCKET_H */
+
+#ifdef HAVE_LINUX_IF_H
+#include <linux/if.h>		/* struct ifaddr, ifreq, ifconf, ifmap, IF_NAMESIZE etc. */
+#elif defined(HAVE_NET_IF_H)
+#include <net/if.h>		/* struct ifaddr, ifreq, ifconf, ifmap, IF_NAMESIZE etc. */
+#endif /* HAVE_LINUX_IF_H*/
 
 /**
- * \struct RunTimeOpts
+ * \struct GlobalConfig
  * \brief Program options set at run-time
  */
 /* program options set at run-time */
+
 typedef struct {
 	Integer8 logAnnounceInterval;
 	Integer8 announceReceiptTimeout;
@@ -81,21 +103,14 @@ typedef struct {
 	int announceTimeoutGracePeriod;
 //	Integer16 currentUtcOffset;
 
-	char ifaceName[IFACE_NAME_LENGTH + 1];
-	char primaryIfaceName[IFACE_NAME_LENGTH+1];
-	char backupIfaceName[IFACE_NAME_LENGTH+1];
-	Boolean backupIfaceEnabled;
+	char ifName[IFNAMSIZ + 1];
 
-	Boolean	noResetClock; // don't step the clock if offset > 1s
+	Boolean	noStep; // don't step the clock if offset > 1s
 	Boolean stepForce; // force clock step on first sync after startup
 	Boolean stepOnce; // only step clock on first sync after startup
-#ifdef linux
 	Boolean setRtc;
-#endif /* linux */
 
 	Boolean clearCounters;
-
-	Integer8 masterRefreshInterval;
 
 	Integer32 maxOffset; /* Maximum number of nanoseconds of offset */
 	Integer32 maxDelay; /* Maximum number of nanoseconds of delay */
@@ -105,12 +120,14 @@ typedef struct {
 	Boolean displayPackets;
 	Integer16 s;
 	TimeInternal inboundLatency, outboundLatency, ofmCorrection;
-	Integer16 max_foreign_records;
+	Integer16 fmrCapacity;
 	Enumeration8 delayMechanism;
 
 	Boolean portDisabled;
+	int faultTimeout;
 
 	int ttl;
+	uint8_t ipv6Scope;
 	int dscpValue;
 #if (defined(linux) && defined(HAVE_SCHED_H)) || defined(HAVE_SYS_CPUSET_H) || defined (__QNXNTO__)
 	int cpuNumber;
@@ -145,24 +162,23 @@ typedef struct {
 	int statusFileUpdateInterval;
 
 	Boolean ignoreLock;
-	Boolean refreshIgmp;
 	Boolean  nonDaemon;
 
 	int initial_delayreq;
 
-	Boolean ignore_delayreq_interval_master;
+	Boolean logDelayReqOverride;
 	Boolean autoDelayReqInterval;
 
 	Boolean autoLockFile; /* mode and interface specific lock files are used
 				    * when set to TRUE */
-	char lockDirectory[PATH_MAX+1]; /* Directory to store lock files
+	char lockDirectory[PATH_MAX + 1]; /* Directory to store lock files
 				       * When automatic lock files used */
-	char lockFile[PATH_MAX+1]; /* lock file location */
-	char driftFile[PATH_MAX+1]; /* drift file location */
-	char leapFile[PATH_MAX+1]; /* leap seconds file location */
+	char lockFile[PATH_MAX * 2 + 1]; /* lock file location */
+	char driftFile[PATH_MAX * 2 + 1]; /* drift file location */
+	char leapFile[PATH_MAX * 2 + 1]; /* leap seconds file location */
 	char frequencyDir[PATH_MAX + 1]; /* frequency file directory */
-	Enumeration8 drift_recovery_method; /* how the observed drift is managed
-				      between restarts */
+	char logFilter[101];		/* simple strstr() check */
+	Boolean deduplicateLog;		/* do not print the same log message twice */
 
 	Boolean storeToFile;
 
@@ -175,10 +191,12 @@ typedef struct {
 	int	alarmInitialDelay;	/* initial delay before we start processing alarms; example:  */
 					/* we don't need a port state alarm just before the port starts to sync */
 
-	Boolean pcap; /* Receive and send packets using libpcap, bypassing the
-			 network stack. */
-	Enumeration8 transport; /* transport type */
-	Enumeration8 ipMode; /* IP transmission mode */
+	uint8_t networkProtocol;	/* transport type */
+	Enumeration8 transportMode;	/* IP transmission mode */
+	uint8_t transportType;		/* force transport implementation */
+	int transportFaultTimeout;	/* transport fault clear delay */
+	int transportMonitorInterval; /* transport monitor interval */
+
 	Boolean dot1AS; /* 801.2AS support -> transportSpecific field */
 	Boolean bindToInterface; /* always bind to interface */
 
@@ -189,15 +207,30 @@ typedef struct {
 	char unicastDomains[MAXHOSTNAMELEN * UNICAST_MAX_DESTINATIONS];
 	char unicastLocalPreference[MAXHOSTNAMELEN * UNICAST_MAX_DESTINATIONS];
 
+	char sourceAddress[MAXHOSTNAMELEN];
+
 	/* list of extra clocks to sync */
 	char extraClocks[PATH_MAX];
 	char masterClock[PATH_MAX];
+	char masterClockRefName[20];
 	char readOnlyClocks[PATH_MAX];
 	char disabledClocks[PATH_MAX];
 	char excludedClocks[PATH_MAX];
+	char noStepClocks[PATH_MAX];
+	Boolean clockFilterExternal; /* apply standard clock filter to clocks with an external reference */
 
-	int clockFailureDelay;
+	bool masterFirstLock; /* do not enter master state until PTP clock locked */
+	bool masterLockedOnly; /* only run as master when PTP clock is locked or in holdover */
+
+	int clockFaultTimeout;
 	Boolean lockClockDevice;
+
+#ifdef CCK_BUILD_TTRANSPORT_LINUXTS
+	int linuxts_txBackoff;
+	int linuxts_txTimeout;
+	uint8_t linuxts_txRetries;
+	double linuxts_txMultiplier;
+#endif
 
 	char productDescription[65];
 	char portDescription[65];
@@ -219,9 +252,8 @@ typedef struct {
 	 */
 	UInteger16  unicastPortMask; /* port mask to apply to portNumber when using negotiation */
 
-#ifdef RUNTIME_DEBUG
 	int debug_level;
-#endif
+	char debugFilter[101];		/* simple strstr() check */
 	Boolean pidAsClockId;
 
 	/**
@@ -238,6 +270,7 @@ typedef struct {
 
 	int servoMaxPpb;
 	int servoMaxPpb_hw;
+	int servoMaxPpb_internal;
 
 	double servoKP;
 	double servoKI;
@@ -245,11 +278,17 @@ typedef struct {
 	double servoKI_hw;
 	double servoKP_hw;
 
+	double servoKI_internal;
+	double servoKP_internal;
+
+
 	double stableAdev;
 	double stableAdev_hw;
+	double stableAdev_internal;
 
 	double unstableAdev;
 	double unstableAdev_hw;
+	double unstableAdev_internal;
 
 	int lockedAge;
 	int lockedAge_hw;
@@ -269,6 +308,12 @@ typedef struct {
 	Enumeration8 servoDtMethod;
 	double servoMaxdT;
 
+	Boolean clockFreqStepDetection;
+
+	Boolean clockStrictSync;
+	int clockMinStep;
+	int clockCalibrationTime;
+
 	/* inter-clock sync filter options */
 
 	Boolean clockStatFilterEnable;
@@ -281,6 +326,7 @@ typedef struct {
 	int clockOutlierFilterDelay;
 	double clockOutlierFilterCutoff;
 	int clockOutlierFilterBlockTimeout;
+
 
 	/**
 	 *  When enabled, ptpd ensures that Sync message sequence numbers
@@ -324,9 +370,6 @@ typedef struct {
 
 	int maxDelayMaxRejected;
 
-	/* max reset cycles in LISTENING before full network restart */
-	int maxListen;
-
 	Boolean managementEnabled;
 	Boolean managementSetEnable;
 
@@ -347,6 +390,6 @@ typedef struct {
 	Boolean ptpMonAnyDomain;
 	UInteger8 ptpMonDomainNumber;
 
-} RunTimeOpts;
+} GlobalConfig;
 
 #endif /*PTPD_GLOBALCONFIG_H_*/

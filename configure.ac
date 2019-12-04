@@ -15,7 +15,11 @@ AC_CONFIG_HEADER([config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([1.9 foreign -Wall])
+AC_GNU_SOURCE
+
+AM_INIT_AUTOMAKE([1.9 foreign silent-rules -Wall])
+
+AM_SILENT_RULES([yes])
 
 MAN_DATE="RELEASE_DATE"
 MAN_VERSION="VERSION_NUMBER"
@@ -23,18 +27,28 @@ MAN_VERSION="VERSION_NUMBER"
 AC_SUBST(MAN_DATE)
 AC_SUBST(MAN_VERSION)
 
-# Checks for programs.
+# Checks for programs
 AC_PROG_AWK
 AC_PROG_CC
 ifdef([AC_PROG_CC_C99], [AC_PROG_CC_C99])
-AC_PROG_LIBTOOL
 AM_PROG_CC_C_O
+AC_PROG_LIBTOOL
 
-# Check for date, cut and tr
+# check for 'make' alternatives, set the MAKE variable accordingly
+AC_PATH_PROGS(MAKE, [ make gmake gnumake ])
+AC_SUBST(MAKE)
+
+# Check for uname,date, cut and tr
 
 AC_PATH_PROG(cutpath, cut)
 AC_PATH_PROG(trpath, tr)
 AC_PATH_PROG(datepath, date)
+AC_PATH_PROG(unamepath, uname)
+
+
+if test -n "$unamepath"; then
+    os_family=`uname`
+fi
 
 if test -n "$datepath"; then
     build_date=`$datepath +%Y%m%d`
@@ -60,44 +74,26 @@ if test -n "$cutpath" && test -n "$trpath"; then
     fi
 fi
 
-case $host in
-*linux*)
-
-
-    AC_CHECK_HEADERS([linux/net_tstamp.h], [], [
-
-    if [ test -d "/usr/src/kernels/`uname -r`/include" ]; then
-	LINUX_KERNEL_INCLUDES="-I/usr/src/kernels/`uname -r`/include"
-	LINUX_KERNEL_HEADERS=yes
-    fi
-
-    if [ test -d "/usr/src/linux-headers-`uname -r`/include" ]; then
-	LINUX_KERNEL_INCLUDES="-I/usr/src/linux-headers-`uname -r`/include"
-	LINUX_KERNEL_HEADERS=yes
-    fi
-
-    ])
-
-    ;;
-esac
-
-AM_CONDITIONAL(LINUX_KERNEL_HEADERS, test x$LINUX_KERNEL_HEADERS = xyes)
-AC_SUBST(LINUX_KERNEL_INCLUDES)
-
 # Checks for libraries.
 AC_SEARCH_LIBS([pow], [m])
 AC_SEARCH_LIBS([clock_gettime], [rt])
 AC_SEARCH_LIBS([timer_create], [rt])
 AC_SEARCH_LIBS([connect], [socket])
 AC_SEARCH_LIBS([gethostbyname], [nsl])
+AC_SEARCH_LIBS([glob], [android-glob])
+AC_SEARCH_LIBS([__android_log_print], [log])
 
 # Checks for header files.
 AC_HEADER_STDC
 
-AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h net/ethernet.h netinet/in.h netinet/in_systm.h netinet/ether.h sys/uio.h stdlib.h string.h sys/ioctl.h sys/param.h sys/socket.h sys/sockio.h ifaddrs.h sys/time.h syslog.h unistd.h glob.h sched.h utmp.h utmpx.h unix.h linux/rtc.h sys/timex.h getopt.h])
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h net/ethernet.h netinet/in.h netinet/in_systm.h netinet/ether.h sys/uio.h net/if_dl.h net/if_types.h])
+AC_CHECK_HEADERS([stdlib.h string.h sys/ioctl.h sys/param.h sys/socket.h sys/sockio.h sys/time.h syslog.h unistd.h])
+AC_CHECK_HEADERS([glob.h sched.h utmp.h utmpx.h unix.h sys/timex.h getopt.h sys/un.h])
+AC_CHECK_HEADERS([linux/if_packet.h linux/sockios.h linux/rtc.h ])
 
+AC_CHECK_HEADERS([ifaddrs.h], [have_ifaddrs_h=true], [have_ifaddrs_h=false], [])
 
-AC_CHECK_HEADERS([endian.h machine/endian.h sys/isa_defs.h])
+AC_CHECK_HEADERS([endian.h machine/endian.h sys/isa_defs.h sys/pfmod.h sys/bufmod.h])
 
 AC_CHECK_HEADERS([math.h],[],[AC_MSG_ERROR([math.h is required to compile PTPd])],[])
 
@@ -110,7 +106,7 @@ AC_CHECK_HEADERS([sys/cpuset.h], [], [],
 ])
 
 # Similar case for if.h
-AC_CHECK_HEADERS([net/if.h], [], [],
+AC_CHECK_HEADERS([net/if.h linux/if.h linux/un.h], [], [],
 [
 #ifdef HAVE_SYS_SOCKET_H
     #include <sys/socket.h>
@@ -119,18 +115,6 @@ AC_CHECK_HEADERS([net/if.h], [], [],
     #include <sys/types.h>
 #endif
 ])
-
-# Similar case for linux/if.h
-AC_CHECK_HEADERS([linux/if.h], [], [],
-[
-#ifdef HAVE_SYS_SOCKET_H
-    #include <sys/socket.h>
-#endif
-#ifdef HAVE_SYS_TYPES_H
-    #include <sys/types.h>
-#endif
-])
-
 
 # Similar case for if_arp.h
 AC_CHECK_HEADERS([net/if_arp.h], [], [],
@@ -166,7 +150,6 @@ AC_CHECK_HEADERS([netinet/if_ether.h], [], [],
 #endif
 ])
 
-
 # ...and for if_ether.h
 AC_CHECK_HEADERS([net/if_ether.h], [], [],
 [
@@ -196,7 +179,6 @@ m4_version_prereq(2.60,[
     [AC_TYPE_SIZE_T]
 )
 
-# Check for tick in the timex structure
 AC_CHECK_MEMBERS([struct utmp.ut_time], [], [], [
 #ifdef HAVE_UTMP_H
 #include <utmp.h>
@@ -239,6 +221,9 @@ AC_CHECK_MEMBERS([struct ether_addr.octet], [], [],
 #endif
 ])
 
+#Check for source / dest in udphdr structure
+AC_CHECK_MEMBERS([struct udphdr.source], [], [], [[#include <netinet/udp.h>]])
+
 # Checks for library functions
 AC_PROG_GCC_TRADITIONAL
 AC_FUNC_MALLOC
@@ -247,7 +232,9 @@ AC_FUNC_SELECT_ARGTYPES
 AC_TYPE_SIGNAL
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_CHECK_FUNCS([clock_gettime dup2 ftruncate gethostbyname2 gettimeofday inet_ntoa memset pow select socket strchr strdup strerror strtol glob pututline utmpxname updwtmpx setutent endutent signal ntp_gettime getopt_long clock_adjtime])
+AC_CHECK_FUNCS([clock_gettime dup2 ftruncate gethostbyname2 gettimeofday inet_ntoa memset pow select socket strchr strdup strerror strtol glob pututline utmpxname updwtmpx setutent endutent signal ntp_gettime getopt_long clock_adjtime if_nametoindex ntp_adjtime adjtimex])
+
+AC_CHECK_FUNCS([daemon], [have_daemon=true], [have_daemon=false])
 
 if test -n "$GCC"; then
     AC_MSG_CHECKING(if GCC -fstack-protector is usable)
@@ -261,25 +248,153 @@ if test -n "$GCC"; then
     ])
 fi
 
-# Any remaining Linux-specific checks (PHC API)
+# Solaris libdlpi checks
+have_libdlpi="false"
+case $host in
+*solaris*)
+    AC_CHECK_HEADERS([sys/dlpi.h])
+    AC_SEARCH_LIBS([dlpi_open], [dlpi], [have_libdlpi=true], [have_libdlpi=false])
+    DLPI_LIBS=""
+    AC_CHECK_HEADERS([libdlpi.h],
+		    [
+			AC_MSG_CHECKING([for libdlpi library])
+			if test "$have_libdlpi" = "true"; then
+			    AC_MSG_RESULT([-ldlpi])
+			elif test -f "/lib/libdlpi.so.1"; then
+			    have_libdlpi="true"
+			    AC_MSG_RESULT([/lib/libdlpi.so.1])
+			    DLPI_LIBS="/lib/libdlpi.so.1"
+			else
+			    AC_MSG_RESULT([none])
+			    AC_MSG_ERROR([no usable libdlpi library found])
+			fi
+			# Check if we have the extended packetfilt structure available
+			AC_CHECK_MEMBERS([struct Pf_ext_packetfilt.Pf_Priority], [], [], [
+			    #include <sys/types.h>
+			    #include <sys/pfmod.h>
+			    ])
+		    ],
+		    [],
+		    []
+    )
+    AC_SUBST([DLPI_LIBS])
+    ;;
+esac
+
+AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_DLPI], [test "$have_libdlpi" = "true"])
+
+
+is_linux=false
 case $host in
 *linux*)
+    is_linux=true
+    AC_DEFINE([CCK_BUILD_TTRANSPORT_SOCK_RAWETH], [1], [Build LibCCK Linux raw ethernet transport])
+;;
+esac
 
-	    AC_CHECK_HEADERS([linux/ethtool.h linux/ptp_clock.h linux/net_tstamp.h])
+AM_CONDITIONAL([LINUX], [test "$is_linux" = "true" ])
+AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_SOCK_RAWETH], [test "$is_linux" = "true" ])
+AM_CONDITIONAL([CCK_BUILD_DAEMON], [test "$have_daemon" = "false" ])
+AM_CONDITIONAL([CCK_BUILD_SOLARIS_GETIFADDRS], [test "$have_ifaddrs_h" = "false"])
+
+# LibCCK conditional component build checks
+
+build_linuxphc=false
+
+
+case $host in
+*solaris*)
+
+
+	    AS_IF([test "$have_ifaddrs_h" = "false"],
+		[
+		    AC_DEFINE([CCK_BUILD_SOLARIS_GETIFADDRS], [1], [Build internal getifaddrs() implementation on Solaris])
+		]
+	    )
+
+	    AS_IF([test "$have_libdlpi" = "true"],
+		[
+		    AC_DEFINE([CCK_BUILD_TTRANSPORT_DLPI], [1], [Build libdlpi transports on Solaris])
+		]
+	    )
+
+
+    ;;
+
+*linux*)
+	    build_linuxphc=true
+	    AC_CHECK_HEADERS([linux/ethtool.h], [], [build_linuxphc=false], [])
+	    AC_CHECK_HEADERS([linux/ptp_clock.h], [], [build_linuxphc=false], [])
+	    AC_CHECK_HEADERS([linux/net_tstamp.h], [], [build_linuxphc=false], [])
 	    # If we have Linux HWTS headers, check if they are complete...
 	    AC_CHECK_DECLS([PTP_SYS_OFFSET], [], [], [[#include <linux/ptp_clock.h>]])
 	    AC_CHECK_DECLS([ETHTOOL_GET_TS_INFO], [], [], [[#include <linux/ethtool.h>]])
+	    AC_CHECK_DECLS([ADJ_SETOFFSET], [], [], [[#include <linux/timex.h>]])
+	    AC_CHECK_DECLS([MSG_ERRQUEUE], [], [build_linuxphc=false], [[#include <sys/socket.h>]])
+
+	    AS_IF([test "$build_linuxphc" = "true"],
+		[
+		    AC_DEFINE([CCK_BUILD_TTRANSPORT_LINUXTS], [1], [Build LibCCK Linux timestamping transports])
+		    AC_DEFINE([CCK_BUILD_CLOCKDRIVER_LINUXPHC], [1], [Build LibCCK Linux PHC clock driver])
+		]
+	    )
 
     ;;
 esac
+
+AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_LINUXTS], [test "$build_linuxphc" = "true"])
+AM_CONDITIONAL([CCK_BUILD_CLOCKDRIVER_LINUXPHC], [test "$build_linuxphc" = "true"])
+
+build_timerfd=true
+AC_CHECK_HEADERS([sys/timerfd.h], [], [build_timerfd=false], [])
+AS_IF([test "$build_timerfd" = "true"],
+	[
+	    AC_DEFINE([CCK_BUILD_TIMER_TIMERFD], [1], [Build LibCCK timer FD timer])
+	]
+    )
+AM_CONDITIONAL([CCK_BUILD_TIMER_TIMERFD], [test "$build_timerfd" = "true"])
+
+build_itimer=true
+AC_CHECK_FUNCS([setitimer], [], [build_itimer=false])
+AS_IF([test "$build_itimer" = "true"],
+	[
+	    AC_DEFINE([CCK_BUILD_TIMER_ITIMER], [1], [Build LibCCK timer itimer])
+	]
+    )
+AM_CONDITIONAL([CCK_BUILD_TIMER_ITIMER], [test "$build_itimer" = "true"])
 
 AC_MSG_NOTICE([************************************************************])
 AC_MSG_NOTICE([* PTPD BUILD FLAG AND LIBRARY DEPENDENCY CHECKS START HERE *])
 AC_MSG_NOTICE([************************************************************])
 
-AC_CHECK_DECLS([MSG_ERRQUEUE], [], [], [[#include <sys/socket.h>]])
+AC_MSG_CHECKING([if we can build libdlpi transports])
+case "$have_libdlpi" in
+     "true")
+	AC_MSG_RESULT([yes])
+	;;
+     *) AC_MSG_RESULT([no])
+	;;
+esac
 
-AC_CHECK_DECLS([POSIX_TIMERS_SUPPORTED], [posix_timers=true], [posix_timers=false], [
+AC_MSG_CHECKING([if we can build itimer support])
+case "$build_itimer" in
+     "true")
+	AC_MSG_RESULT([yes])
+	;;
+     *) AC_MSG_RESULT([no])
+	;;
+esac
+
+AC_MSG_CHECKING([if we can build FD timer support])
+case "$build_timerfd" in
+     "true")
+	AC_MSG_RESULT([yes])
+	;;
+     *) AC_MSG_RESULT([no])
+	;;
+esac
+
+AC_CHECK_DECLS([POSIX_TIMERS_SUPPORTED], [build_posix_timers=true], [build_posix_timers=false], [
 #ifdef __sun && !defined(_XPG6)
 #define _XPG6
 #endif
@@ -289,34 +404,18 @@ AC_CHECK_DECLS([POSIX_TIMERS_SUPPORTED], [posix_timers=true], [posix_timers=fals
 #else
 #endif
 ])
+AC_MSG_CHECKING([if we can build POSIX timer support])
 
-# ALL USER-CONTROLLED KNOBS START HERE
-
-AC_ARG_ENABLE([posix_timers],
-	    AS_HELP_STRING( [--disable-posix-timers (enabled by default if supported)],
-			    [Disable POSIX timer support and use interval timers even if POSIX timers supported by the OS])
-	    )
-
-AS_IF([test "x$enable_posix_timers" == "xno"], [
-posix_timers=false
-])
-
-AM_CONDITIONAL([PTIMERS], [test x$posix_timers = xtrue ])
-
-AC_MSG_CHECKING([if we want to build POSIX timer support])
-
-case "$posix_timers" in
+case "$build_posix_timers" in
      "true")
-	PTP_PTIMERS="-DPTPD_PTIMERS"
+	AC_DEFINE([CCK_BUILD_TIMER_POSIX], [1], [Build POSIX timer implementation])
 	AC_MSG_RESULT([yes])
 	;;
-     *) PTP_PTIMERS=""
-	AC_MSG_RESULT([no])
+     *) AC_MSG_RESULT([no])
 	;;
 esac
 
-AC_SUBST(PTP_PTIMERS)
-
+AM_CONDITIONAL([CCK_BUILD_TIMER_POSIX], [test "$build_posix_timers" = "true" ])
 
 AC_ARG_WITH(
     [pcap-config],
@@ -386,7 +485,7 @@ esac
 
 fi
 
-ptpd_pcap_enabled=0
+build_pcap=false
 
 case "$try_pcap" in
  yes)
@@ -416,8 +515,6 @@ case "$try_pcap" in
 	CFLAGS=$PCAP_CFLAGS
 	CPPFLAGS=$PCAP_CPPFLAGS
 
-
-
 	CFLAGS=$save_CFLAGS
 	AS_UNSET([save_CFLAGS])
 	CPPFLAGS=$save_CPPFLAGS
@@ -428,19 +525,17 @@ case "$try_pcap" in
 	AC_MSG_CHECKING([if we can build with libpcap support])
 	case "$ac_cv_header_pcap_pcap_h" in
 	 yes)
-		ptpd_pcap_enabled=1
-		PTP_PCAP="-DPTPD_PCAP"
+		build_pcap=true
 		AC_MSG_RESULT([yes])
 		;;
 	 no)
 		case "$ac_cv_header_pcap_h" in
 		 yes)
-			ptpd_pcap_enabled=1
-			PTP_PCAP="-DPTPD_PCAP"
+			build_pcap=true
 			AC_MSG_RESULT([yes])
 			;;
 		 no)
-			PTP_PCAP=""
+			build_pcap=false
 			PCAP_LIBS=""
 			PCAP_CPPFLAGS=""
 			PCAP_CFLAGS=""
@@ -465,19 +560,17 @@ case "$try_pcap" in
 	AC_MSG_CHECKING([if we can build with PCAP support])
 	case "$ac_cv_header_pcap_pcap_h" in
 	 yes)
-		ptpd_pcap_enabled=1
-		PTP_PCAP="-DPTPD_PCAP"
+		build_pcap=true
 		AC_MSG_RESULT([yes])
 		;;
 	 no)
 		case "$ac_cv_header_pcap_h" in
 		 yes)
-			ptpd_pcap_enabled=1
-			PTP_PCAP="-DPTPD_PCAP"
+			build_pcap=true
 			AC_MSG_RESULT([yes])
 			;;
 		 no)
-			PTP_PCAP=""
+			build_pcap=false
 			PCAP_LIBS=""
 			PCAP_CPPFLAGS=""
 			PCAP_CFLAGS=""
@@ -488,7 +581,7 @@ case "$try_pcap" in
 	esac
  ;;
  no)
-			PTP_PCAP=""
+			build_pcap=false
 			PCAP_LIBS=""
 			PCAP_CPPFLAGS=""
 			PCAP_CFLAGS=""
@@ -497,10 +590,13 @@ case "$try_pcap" in
 
 esac
 
-
-
-AC_SUBST(PTP_PCAP)
-AM_CONDITIONAL([PCAP], [test x$ptpd_pcap_enabled = x1])
+AS_IF([test "$build_pcap" = "true"],
+	[
+	    AC_DEFINE([CCK_BUILD_TTRANSPORT_PCAP], [1], [Build LibCCK libpcap transports])
+	]
+	[]
+    )
+AM_CONDITIONAL([CCK_BUILD_TTRANSPORT_PCAP], [test "$build_pcap" = "true"])
 
 AC_ARG_WITH(
     [net-snmp-config],
@@ -603,11 +699,9 @@ case "$try_snmp" in
 	case "$ac_cv_header_net_snmp_net_snmp_config_h" in
 	 yes)
 		ptpd_snmp_enabled=1
-		PTP_SNMP="-DPTPD_SNMP"
 		AC_MSG_RESULT([yes])
 		;;
 	 no)
-		PTP_SNMP=""
 		SNMP_LIBS=""
 		SNMP_CPPFLAGS=""
 		SNMP_CFLAGS=""
@@ -624,10 +718,15 @@ case "$try_snmp" in
     ;;
 esac
 
-AC_SUBST(PTP_SNMP)
-AM_CONDITIONAL([SNMP], [test x$ptpd_snmp_enabled = x1])
 
+AS_IF([test x$ptpd_snmp_enabled = x1],
+	[
+	    AC_DEFINE([PTPD_SNMP], [1], [Build PTPd with SNMP support])
+	]
+	[]
+    )
 
+AM_CONDITIONAL([PTPD_SNMP], [test x$ptpd_snmp_enabled = x1])
 
 AC_MSG_CHECKING([for RUNTIME_DEBUG])
 AC_ARG_ENABLE(
@@ -674,6 +773,23 @@ case "$enable_runtime_debug" in
 esac
 AC_SUBST(PTP_DBL)
 
+AC_MSG_CHECKING([if we want to enable LibCCK debug mode])
+
+AC_ARG_ENABLE(
+    [libcck-debug],
+    [AS_HELP_STRING(
+	[--enable-libcck-debug (disabled by default)],
+	[Enable LibCCK debug mode]
+    )],
+    [
+	AC_DEFINE([CCK_DEBUG], [1], [Enable LibCCK debug mode])
+	libcck_debug=yes
+    ],
+    [libcck_debug=no]
+)
+
+AC_MSG_RESULT([$libcck_debug])
+
 AC_MSG_CHECKING([for maximum unicast destination table size])
 AC_ARG_WITH(
     [max-unicast-destinations],
@@ -686,13 +802,32 @@ AC_ARG_WITH(
     [max_destinations=$with_max_unicast_destinations],
     [max_destinations=128]
 )
-
 test $max_destinations -lt 16 && max_destinations=16
 test $max_destinations -gt 2048 && max_destinations=2048
 
-PTP_UNICAST_MAX="-DPTPD_UNICAST_MAX=$max_destinations"
-AC_SUBST([PTP_UNICAST_MAX])
+AC_DEFINE_UNQUOTED([PTP_UNICAST_MAX], [$max_destinations], [Maximum PTP unicast destinations])
 AC_MSG_RESULT([$max_destinations])
+
+AC_MSG_CHECKING([for non-default UTC to TAI offset])
+AC_ARG_WITH(
+    [utc-tai-offset],
+    [AS_HELP_STRING(
+	[--with-utc-tai-offset = [ 0+ (default: LibCCK build default)]],
+	[Change the default UTC to TAI offset used. LibCCK provides its 
+	    own default value which is kept up to date with IERS Bulletin C.
+	    This overrides this default.]
+    )],
+    [utc_tai_offset=$with_utc_tai_offset],
+    [utc_tai_offset=-1]
+)
+if test $utc_tai_offset -gt -1
+then
+    AC_DEFINE_UNQUOTED([CCK_BUILD_UTC_TAI_OFFSET], [$utc_tai_offset], [Non-default LibCCK UTC to TAI offset])
+    AC_MSG_RESULT([$utc_tai_offset])
+else
+    AC_MSG_RESULT([none given])
+fi
+
 
 AC_MSG_CHECKING([for daemon mode])
 AC_ARG_ENABLE(
@@ -749,26 +884,6 @@ case "$enable_experimental_options" in
 esac
 AC_SUBST(PTP_EXP)
 AM_CONDITIONAL([EXP], [test x$enable_experimental_options = xyes])
-
-AC_MSG_CHECKING([if we want to enable SO_TIMESTAMPING support on Linux if available])
-AC_ARG_ENABLE(
-    [so-timestamping],
-    [AS_HELP_STRING(
-	[--disable-so-timestamping (enabled by default)],
-	[Disable support for SO_TIMESTAMPING on Linux builds]
-    )],
-    [],
-    [enable_so_timestamping=yes]
-)
-AC_MSG_RESULT([$enable_so_timestamping])
-case "$enable_so_timestamping" in
- no)
-    PTP_DISABLE_SOTIMESTAMPING="-DPTPD_DISABLE_SOTIMESTAMPING"
-    ;;
-esac
-AC_SUBST(PTP_DISABLE_SOTIMESTAMPING)
-
-AM_CONDITIONAL([DISABLE_SOTIMESTAMPING], [test x$enable_so_timestamping = xno])
 
 AC_MSG_CHECKING([if we're building a slave-only build])
 

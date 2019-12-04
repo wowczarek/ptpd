@@ -111,29 +111,6 @@ clockUUID_display(const Octet * sourceUuid)
 	);
 }
 
-/**\brief Display Network info*/
-void
-netPath_display(const NetPath * net)
-{
-#ifdef RUNTIME_DEBUG
-		struct in_addr tmpAddr;
-	DBGV("eventSock : %d \n", net->eventSock);
-	DBGV("generalSock : %d \n", net->generalSock);
-	tmpAddr.s_addr = net->multicastAddr;
-	DBGV("multicastAdress : %s \n", inet_ntoa(tmpAddr));
-	tmpAddr.s_addr = net->peerMulticastAddr;
-	DBGV("peerMulticastAddress : %s \n", inet_ntoa(tmpAddr));
-#endif /* RUNTIME_DEBUG */
-}
-
-/**\brief Display a IntervalTimer Structure*/
-void
-intervalTimer_display(const IntervalTimer * ptimer)
-{
-	DBGV("interval : %.06f \n", ptimer->interval);
-	DBGV("expire : %d \n", ptimer->expired);
-}
-
 /**\brief Display a TimeInterval Structure*/
 void
 timeInterval_display(const TimeInterval * timeInterval)
@@ -166,6 +143,14 @@ PTPText_display(const PTPText *p, const PtpClock *ptpClock)
 	DBGV("    textField : %.*s \n", (int)p->lengthField,  p->textField);
 }
 
+#if 0
+
+/*
+ * I am leaving this here purely for the viewer's pleasure,
+ * to see what this project started with.
+ * Yes, this function displays a string, byte by byte.
+ */
+
 /**\brief Display the Network Interface Name*/
 void
 iFaceName_display(const Octet * iFaceName)
@@ -181,23 +166,7 @@ iFaceName_display(const Octet * iFaceName)
 	DBGV("\n");
 
 }
-
-/**\brief Display an Unicast Adress*/
-void
-unicast_display(const Octet * unicast)
-{
-
-	int i;
-
-	DBGV("Unicast adress : ");
-
-	for (i = 0; i < NET_ADDRESS_LENGTH; i++) {
-		DBGV("%c", unicast[i]);
-	}
-	DBGV("\n");
-
-}
-
+#endif
 
 /**\brief Display Sync message*/
 void
@@ -359,6 +328,145 @@ mMClockDescription_display(const MMClockDescription *clockDescription, const Ptp
 	DBGV("profileIdentity5 : %d \n", clockDescription->profileIdentity5);
 }
 
+void
+mMUserDescription_display(const MMUserDescription* userDescription, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMInitialize_display(const MMInitialize* initialize, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMDefaultDataSet_display(const MMDefaultDataSet* defaultDataSet, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMCurrentDataSet_display(const MMCurrentDataSet* currentDataSet, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMParentDataSet_display(const MMParentDataSet* parentDataSet, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMTimePropertiesDataSet_display(const MMTimePropertiesDataSet* timePropertiesDataSet, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMPortDataSet_display(const MMPortDataSet* portDataSet, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMPriority1_display(const MMPriority1* priority1, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMPriority2_display(const MMPriority2* priority2, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMDomain_display(const MMDomain* domain, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMLogAnnounceInterval_display(const MMLogAnnounceInterval* logAnnounceInterval, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMAnnounceReceiptTimeout_display(const MMAnnounceReceiptTimeout* announceReceiptTimeout, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMLogSyncInterval_display(const MMLogSyncInterval* logSyncInterval, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMVersionNumber_display(const MMVersionNumber* versionNumber, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMTime_display(const MMTime* time, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMClockAccuracy_display(const MMClockAccuracy* clockAccuracy, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMUtcProperties_display(const MMUtcProperties* utcProperties, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMTraceabilityProperties_display(const MMTraceabilityProperties* traceabilityProperties, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMTimescaleProperties_display(const MMTimescaleProperties* TimescaleProperties, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMUnicastNegotiationEnable_display(const MMUnicastNegotiationEnable* unicastNegotiationEnable, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+
+void
+mMDelayMechanism_display(const MMDelayMechanism* delayMechanism, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMLogMinPdelayReqInterval_display(const MMLogMinPdelayReqInterval* logMinPdelayReqInterval, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
+void
+mMErrorStatus_display(const MMErrorStatus* errorStatus, const PtpClock *ptpClock)
+{
+	/* TODO: implement me */
+}
+
 /**\brief Display Signaling message*/
 void
 msgSignaling_display(const MsgSignaling * signaling)
@@ -403,37 +511,6 @@ sMAcknowledgeCancelUnicastTransmission_display(const SMAcknowledgeCancelUnicastT
 }
 
 #define FORMAT_SERVO	"%f"
-
-/**\brief Display runTimeOptions structure*/
-void
-displayRunTimeOpts(const RunTimeOpts * rtOpts)
-{
-
-	DBGV("---Run time Options Display-- \n");
-	DBGV("\n");
-	DBGV("announceInterval : %d \n", rtOpts->logAnnounceInterval);
-	DBGV("syncInterval : %d \n", rtOpts->logSyncInterval);
-	clockQuality_display(&(rtOpts->clockQuality));
-	DBGV("priority1 : %d \n", rtOpts->priority1);
-	DBGV("priority2 : %d \n", rtOpts->priority2);
-	DBGV("domainNumber : %d \n", rtOpts->domainNumber);
-	DBGV("slaveOnly : %d \n", rtOpts->slaveOnly);
-	DBGV("currentUtcOffset : %d \n", rtOpts->timeProperties.currentUtcOffset);
-	DBGV("noAdjust : %d \n", rtOpts->noAdjust);
-	DBGV("logStatistics : %d \n", rtOpts->logStatistics);
-	iFaceName_display(rtOpts->ifaceName);
-	DBGV("kP : %d \n", rtOpts->servoKP);
-	DBGV("kI : %d \n", rtOpts->servoKI);
-	DBGV("s : %d \n", rtOpts->s);
-	DBGV("inbound latency : \n");
-	timeInternal_display(&(rtOpts->inboundLatency));
-	DBGV("outbound latency : \n");
-	timeInternal_display(&(rtOpts->outboundLatency));
-	DBGV("max_foreign_records : %d \n", rtOpts->max_foreign_records);
-	DBGV("transport : %d \n", rtOpts->transport);
-	DBGV("\n");
-}
-
 
 /**\brief Display Default data set of a PtpClock*/
 void
@@ -567,17 +644,6 @@ void
 displayOthers(const PtpClock * ptpClock)
 {
 
-	int i;
-
-	/* Usefull to display name of timers */
-#ifdef PTPD_DBGV
-	    char timer[][26] = {
-		"PDELAYREQ_INTERVAL_TIMER",
-		"SYNC_INTERVAL_TIMER",
-		"ANNOUNCE_RECEIPT_TIMER",
-		"ANNOUNCE_INTERVAL_TIMER"
-	};
-#endif
 	DBGV("---Ptp Others Data Set-- \n");
 	DBGV("\n");
 
@@ -619,19 +685,11 @@ displayOthers(const PtpClock * ptpClock)
 	DBGV("s_exp : %d \n", ptpClock->mpdIirFilter.s_exp);
 	DBGV("\n");
 	if(ptpClock->clockDriver != NULL) {
-	    DBGV("observed drift : "FORMAT_SERVO" \n", ptpClock->clockDriver->servo.integral);
+	    DBGV("observed drift : "FORMAT_SERVO" \n", ((ClockDriver*)ptpClock->clockDriver)->servo.integral);
 	}
 	DBGV("message activity %d \n", ptpClock->message_activity);
 	DBGV("\n");
 
-	for (i = 0; i < PTP_MAX_TIMER; i++) {
-		DBGV("%s : \n", timer[i]);
-		intervalTimer_display(&ptpClock->timers[i]);
-		DBGV("\n");
-	}
-
-	netPath_display(&ptpClock->netPath);
-	clockUUID_display(ptpClock->netPath.interfaceID);
 	DBGV("\n");
 }
 
@@ -690,15 +748,16 @@ const char
 *portState_getName(Enumeration8 portState)
 {
     static const char *ptpStates[] = {
-        [PTP_INITIALIZING] = "PTP_INITIALIZING",
-        [PTP_FAULTY] = "PTP_FAULTY",
-        [PTP_DISABLED] = "PTP_DISABLED",
-        [PTP_LISTENING] = "PTP_LISTENING",
-        [PTP_PRE_MASTER] = "PTP_PRE_MASTER",
-        [PTP_MASTER] = "PTP_MASTER",
-        [PTP_PASSIVE] = "PTP_PASSIVE",
-        [PTP_UNCALIBRATED] = "PTP_UNCALIBRATED",
-        [PTP_SLAVE] = "PTP_SLAVE"
+	[0] =			"PTP_POWERUP",
+        [PTP_INITIALIZING] =	"PTP_INITIALIZING",
+        [PTP_FAULTY] =		"PTP_FAULTY",
+        [PTP_DISABLED] =	"PTP_DISABLED",
+        [PTP_LISTENING] =	"PTP_LISTENING",
+        [PTP_PRE_MASTER] =	"PTP_PRE_MASTER",
+        [PTP_MASTER] =		"PTP_MASTER",
+        [PTP_PASSIVE] =		"PTP_PASSIVE",
+        [PTP_UNCALIBRATED] =	"PTP_UNCALIBRATED",
+        [PTP_SLAVE] =		"PTP_SLAVE"
     };
 
     /* converting to int to avoid compiler warnings when comparing enum*/
@@ -800,7 +859,7 @@ displayCounters(const PtpClock * ptpClock)
 	INFO("Protocol engine counters:\n");
 	INFO("                  stateTransitions : %lu\n",
 		(unsigned long)ptpClock->counters.stateTransitions);
-	INFO("                     bestMasterChanges : %lu\n",
+	INFO("                 bestMasterChanges : %lu\n",
 		(unsigned long)ptpClock->counters.bestMasterChanges);
 	INFO("                  announceTimeouts : %lu\n",
 		(unsigned long)ptpClock->counters.announceTimeouts);
@@ -812,10 +871,6 @@ displayCounters(const PtpClock * ptpClock)
 		(unsigned long)ptpClock->counters.unknownMessages);
 	INFO("                   ignoredAnnounce : %lu\n",
 		(unsigned long)ptpClock->counters.ignoredAnnounce);
-	INFO("    aclManagementMessagesDiscarded : %lu\n",
-		(unsigned long)ptpClock->counters.aclManagementMessagesDiscarded);
-	INFO("        aclTimingMessagesDiscarded : %lu\n",
-		(unsigned long)ptpClock->counters.aclTimingMessagesDiscarded);
 
 	INFO("Error counters:\n");
 	INFO("                 messageSendErrors : %lu\n",
@@ -834,18 +889,18 @@ displayCounters(const PtpClock * ptpClock)
 		(unsigned long)ptpClock->counters.sequenceMismatchErrors);
 	INFO("         consecutiveSequenceErrors : %lu\n",
 		(unsigned long)ptpClock->counters.consecutiveSequenceErrors);
-	INFO("           delayMechanismMismatchErrors : %lu\n",
+	INFO("      delayMechanismMismatchErrors : %lu\n",
 		(unsigned long)ptpClock->counters.delayMechanismMismatchErrors);
-	INFO("           maxDelayDrops : %lu\n",
+	INFO("                     maxDelayDrops : %lu\n",
 		(unsigned long)ptpClock->counters.maxDelayDrops);
-	INFO("     txTimestampFailures : %lu\n",
+	INFO("               txTimestampFailures : %lu\n",
 		(unsigned long)ptpClock->counters.txTimestampFailures);
 
 	INFO("Outlier filter hits:\n");
-	INFO("              delayMSOutliersFound : %lu\n",
-		(unsigned long)ptpClock->counters.delayMSOutliersFound);
-	INFO("              delaySMOutliersFound : %lu\n",
-		(unsigned long)ptpClock->counters.delaySMOutliersFound);
+	INFO("              delayMSOutliers : %lu\n",
+		(unsigned long)ptpClock->counters.delayMSOutliers);
+	INFO("              delaySMOutliers : %lu\n",
+		(unsigned long)ptpClock->counters.delaySMOutliers);
 
 }
 

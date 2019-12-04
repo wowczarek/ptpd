@@ -1,6 +1,11 @@
 #ifndef DATATYPES_DEP_H_
 #define DATATYPES_DEP_H_
 
+#include <config.h>
+
+#include <stdio.h>
+
+#include "constants_dep.h"
 #include "../ptp_primitives.h"
 
 /**
@@ -28,116 +33,7 @@ typedef struct {
 typedef struct {
     Integer32  nsec_prev, y;
     Integer32  s_exp;
-} one_way_delay_filter;
-
-#define BOND_SLAVES_MAX 10
-
-typedef struct {
-    char name[IFACE_NAME_LENGTH + 1];
-    int id;
-    Boolean hwTimestamping;
-    Boolean txTimestamping;
-} BondSlave;
-
-typedef struct {
-	Boolean updated;
-	Boolean bonded;
-	Boolean activeBackup;
-	int slaveCount;
-	int activeCount;
-	BondSlave activeSlave;
-	BondSlave slaves[BOND_SLAVES_MAX];
-	Boolean activeChanged;
-	Boolean countChanged;
-} BondInfo;
-
-typedef struct {
-	Boolean vlan;
-	int vlanId;
-	char realDevice[IFACE_NAME_LENGTH + 1];
-} VlanInfo;
-
-typedef struct {
-	int value;
-	char name[40];
-} OptionName;
-
-typedef struct {
-	int rxFilter;
-	int tsMode;
-	int txType;
-	Boolean txTimestamping;
-	Boolean hwTimestamping;
-} HwTsInfo;
-
-/**
-* \brief Struct containing interface information and capabilities
- */
-typedef struct {
-        struct sockaddr afAddress;
-        unsigned char hwAddress[14];
-        Boolean hasHwAddress;
-        Boolean hasAfAddress;
-        int addressFamily;
-        unsigned int flags;
-	int ifIndex;
-	char physicalDevice[IFACE_NAME_LENGTH + 1];
-	BondInfo bondInfo;
-	VlanInfo vlanInfo;
-} InterfaceInfo;
-
-
-/**
-* \brief Struct describing network transport data
- */
-typedef struct {
-	Integer32 eventSock, generalSock;
-	Integer32 multicastAddr, peerMulticastAddr;
-
-	/* Interface address and capability descriptor */
-	InterfaceInfo interfaceInfo;
-
-	/* used by IGMP refresh */
-	struct in_addr interfaceAddr;
-	/* Typically MAC address - outer 6 octers of ClockIdendity */
-	Octet interfaceID[ETHER_ADDR_LEN];
-	/* source address of last received packet - used for unicast replies to Delay Requests */
-	Integer32 lastSourceAddr;
-	/* destination address of last received packet - used for unicast FollowUp for multiple slaves*/
-	Integer32 lastDestAddr;
-
-	uint64_t sentPackets;
-	uint64_t receivedPackets;
-
-	uint64_t sentPacketsTotal;
-	uint64_t receivedPacketsTotal;
-
-#ifdef PTPD_PCAP
-	pcap_t *pcapEvent;
-	pcap_t *pcapGeneral;
-	Integer32 pcapEventSock;
-	Integer32 pcapGeneralSock;
-#endif
-	Integer32 headerOffset;
-
-	/* used for tracking the last TTL set */
-	int ttlGeneral;
-	int ttlEvent;
-	Boolean joinedPeer;
-	Boolean joinedGeneral;
-	struct ether_addr etherDest;
-	struct ether_addr peerEtherDest;
-	Boolean txTimestamping;
-	Boolean txLoop;
-	Boolean hwTimestamping;
-	Boolean hwTimestamping_backup;
-	Boolean txDelayed;
-	int ignorePackets;
-	Ipv4AccessList* timingAcl;
-	Ipv4AccessList* managementAcl;
-
-} NetPath;
-
+} IIRfilter;
 
 typedef struct {
 
@@ -156,7 +52,6 @@ typedef struct {
 	int maxFiles;
 
 } LogFileHandler;
-
 
 typedef struct{
 

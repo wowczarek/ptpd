@@ -7,16 +7,11 @@ man_MANS = ptpd.8 ptpd.conf.5
 
 AM_CFLAGS	= $(SNMP_CFLAGS) $(PCAP_CFLAGS) -Wall -fexceptions
 AM_CPPFLAGS	= $(SNMP_CPPFLAGS) $(PCAP_CPPFLAGS)
-AM_LDFLAGS	= $(SNMP_LIBS) $(PCAP_LIBS)
+AM_LDFLAGS	= $(SNMP_LIBS) $(PCAP_LIBS) $(DLPI_LIBS)
 
-if LINUX_KERNEL_HEADERS
-AM_CFLAGS += $(LINUX_KERNEL_INCLUDES)
-endif
-AM_CPPFLAGS    += -DDATADIR='"$(datadir)"' $(PTP_DBL) $(PTP_DAEMON) $(PTP_EXP) $(PTP_SNMP) $(PTP_PCAP) $(PTP_SLAVE_ONLY) $(PTP_PTIMERS) $(PTP_UNICAST_MAX) $(PTP_DISABLE_SOTIMESTAMPING) $(PTP_PROFILING_OUTPUT)
+AM_CPPFLAGS    += -DDATADIR='"$(datadir)"' $(PTP_DBL) $(PTP_DAEMON) $(PTP_EXP) $(PTP_SLAVE_ONLY) $(PTP_PROFILING_OUTPUT)
 
 NULL=
-
-BOB=@VERSION_NUMBER@
 
 #VERSION = 2.3.1
 #SHAREDLIBVER = $(SHAREDLIB).$(VERSION)
@@ -35,13 +30,12 @@ ptpd_SOURCES =				\
 	datatypes.h			\
 	dep/constants_dep.h		\
 	dep/datatypes_dep.h		\
-	dep/ipv4_acl.h			\
-	dep/ipv4_acl.c			\
 	dep/msg.c			\
-	dep/net.c			\
+	dep/cck_glue.h			\
+	dep/cck_glue.c			\
+	dep/transport.h			\
+	dep/transport.c			\
 	dep/ptpd_dep.h			\
-	dep/eventtimer.h		\
-	dep/eventtimer.c		\
 	ptp_timers.h			\
 	ptp_timers.c			\
 	dep/servo.c			\
@@ -59,37 +53,72 @@ ptpd_SOURCES =				\
 	management.c			\
 	signaling.c			\
 	protocol.c			\
+	globalconfig.h			\
+	dep/ntpengine/ntpoptions.h	\
 	dep/ntpengine/ntp_isc_md5.c	\
 	dep/ntpengine/ntp_isc_md5.h	\
 	dep/ntpengine/ntpdcontrol.c	\
 	dep/ntpengine/ntpdcontrol.h	\
-	timingdomain.h			\
-	timingdomain.c			\
+	libcck/cck_logger.h		\
+	libcck/cck_logger.c		\
 	libcck/net_utils.h		\
 	libcck/net_utils.c		\
-	dep/statistics.h		\
-	dep/statistics.c		\
-	dep/outlierfilter.h		\
-	dep/outlierfilter.c		\
-	dep/alarms.h			\
-	dep/alarms.c			\
+	libcck/statistics.h		\
+	libcck/statistics.c		\
+	libcck/cck.h			\
+	libcck/cck_types.h		\
+	libcck/log_handler.h		\
+	libcck/linked_list.h		\
+	libcck/cck_utils.h		\
+	libcck/cck_utils.c		\
+	libcck/cck_timestamp.h		\
+	libcck/cck_timestamp.c		\
+	libcck/fd_set.h			\
+	libcck/fd_set.c			\
+	libcck/timer.def		\
+	libcck/timer.h			\
+	libcck/timer.c			\
+	libcck/timer_interface.h	\
+	libcck/transport_address.h	\
+	libcck/transport_address.c	\
+	libcck/acl.def			\
+	libcck/acl.h			\
+	libcck/acl.c			\
+	libcck/acl_interface.h		\
+	libcck/acl/acl_dummy.h		\
+	libcck/acl/acl_dummy.c		\
+	libcck/acl/acl_ipv4.h		\
+	libcck/acl/acl_ipv4.c		\
+	libcck/acl/acl_ipv6.h		\
+	libcck/acl/acl_ipv6.c		\
+	libcck/acl/acl_ethernet.h	\
+	libcck/acl/acl_ethernet.c	\
+	libcck/ttransport.def		\
+	libcck/ttransport.h		\
+	libcck/ttransport.c		\
+	libcck/ttransport_interface.h	\
+	libcck/ttransport/udp_common.h\
+	libcck/ttransport/udp_common.c\
+	libcck/ttransport/ethernet_common.h\
+	libcck/ttransport/ethernet_common.c\
+	libcck/ttransport/socket_common.h\
+	libcck/ttransport/socket_common.c\
+	libcck/ttransport/socket_udpv4.h\
+	libcck/ttransport/socket_udpv4.c\
+	libcck/ttransport/socket_udpv6.h\
+	libcck/ttransport/socket_udpv6.c\
+	libcck/clockdriver.def		\
 	libcck/clockdriver.h		\
 	libcck/clockdriver.c		\
 	libcck/clockdriver_interface.h	\
-	libcck/clockdriver_unix.h		\
-	libcck/clockdriver_unix.c		\
-	libcck/extensions/clockdriver/linuxphc_vext_intel.h \
-	libcck/extensions/clockdriver/linuxphc_vext_intel.c \
-	libcck/extensions/clockdriver/efx_ioctl_timesync.h \
-	libcck/extensions/clockdriver/linuxphc_vext_solarflare.h \
-	libcck/extensions/clockdriver/linuxphc_vext_solarflare.c \
-	libcck/extensions/clockdriver/linuxphc_vext.def \
-	libcck/clockdriver_linuxphc.h	\
-	libcck/clockdriver_linuxphc.c	\
-	libcck/linkedlist.h		\
-	globalconfig.h			\
+	libcck/clockdriver/unix_common.h \
+	libcck/clockdriver/unix_common.c \
+	libcck/clockdriver/clockdriver_unix.h		\
+	libcck/clockdriver/clockdriver_unix.c		\
 	libcck/piservo.h		\
 	libcck/piservo.c		\
+	libcck/libcck.h			\
+	libcck/libcck.c			\
 	lib1588/ptp_primitives.h	\
 	lib1588/ptp_primitives.c	\
 	lib1588/ptp_derived_types.h	\
@@ -98,27 +127,112 @@ ptpd_SOURCES =				\
 	lib1588/ptp_tlv_signaling.c	\
 	lib1588/ptp_tlv_management.h	\
 	lib1588/ptp_tlv_management.c	\
-	lib1588/ptp_tlv_other.h	\
-	lib1588/ptp_tlv_other.c	\
+	lib1588/ptp_tlv_other.h		\
+	lib1588/ptp_tlv_other.c		\
 	lib1588/ptp_tlv.h		\
 	lib1588/ptp_tlv.c		\
 	lib1588/ptp_message.h		\
 	lib1588/ptp_message.c		\
 	lib1588/tmp.h			\
+	lib1588_glue.h			\
+	lib1588_glue.c			\
+	dep/statistics.h		\
+	dep/statistics.c		\
+	dep/outlierfilter.h		\
+	dep/outlierfilter.c		\
+	dep/alarms.h			\
+	dep/alarms.c			\
 	ptpd.c				\
 	ptpd.h				\
 	$(NULL)
 
-# SNMP
-if SNMP
-ptpd_SOURCES += dep/snmp.c
+# LibCCK conditional component builds follow
+if LINUX
+ptpd_SOURCES += libcck/net_utils_linux.h\
+		libcck/net_utils_linux.c
 endif
 
-# posix timers
-if PTIMERS
-ptpd_SOURCES +=dep/eventtimer_posix.c
-else
-ptpd_SOURCES +=dep/eventtimer_itimer.c
+if CCK_BUILD_TTRANSPORT_SOCK_RAWETH
+ptpd_SOURCES += libcck/ttransport/socket_raweth.h\
+		libcck/ttransport/socket_raweth.c
+endif
+
+
+if CCK_BUILD_TTRANSPORT_LINUXTS
+ptpd_SOURCES += libcck/ttransport/linuxts_common.h\
+		libcck/ttransport/linuxts_common.c\
+		libcck/ttransport/linuxts_udpv4.h\
+		libcck/ttransport/linuxts_udpv4.c\
+		libcck/ttransport/linuxts_udpv6.h\
+		libcck/ttransport/linuxts_udpv6.c\
+		libcck/ttransport/linuxts_raweth.h\
+		libcck/ttransport/linuxts_raweth.c
+endif
+
+if CCK_BUILD_TTRANSPORT_PCAP
+ptpd_SOURCES += libcck/ttransport/pcap_common.h\
+		libcck/ttransport/pcap_common.c\
+		libcck/ttransport/pcap_ethernet.h\
+		libcck/ttransport/pcap_ethernet.c\
+		libcck/ttransport/pcap_udpv4.h\
+		libcck/ttransport/pcap_udpv4.c\
+		libcck/ttransport/pcap_udpv6.h\
+		libcck/ttransport/pcap_udpv6.c
+endif
+
+if CCK_BUILD_TTRANSPORT_DLPI
+ptpd_SOURCES += libcck/ttransport/dlpi_common.h\
+		libcck/ttransport/dlpi_common.c\
+		libcck/ttransport/dlpi_udpv4.h\
+		libcck/ttransport/dlpi_udpv4.c\
+		libcck/ttransport/dlpi_udpv6.h\
+		libcck/ttransport/dlpi_udpv6.c
+endif
+
+if CCK_BUILD_CLOCKDRIVER_LINUXPHC
+ptpd_SOURCES += libcck/clockdriver/vext/linuxphc_vext_intel.h\
+		libcck/clockdriver/vext/linuxphc_vext_intel.c\
+		libcck/clockdriver/vext/efx_ioctl_timesync.h\
+		libcck/clockdriver/vext/linuxphc_vext.def\
+		libcck/clockdriver/vext/linuxphc_vext_solarflare.h\
+		libcck/clockdriver/vext/linuxphc_vext_solarflare.c\
+		libcck/clockdriver/clockdriver_linuxphc.h\
+		libcck/clockdriver/clockdriver_linuxphc.c
+endif
+
+if CCK_BUILD_TIMER_ITIMER
+ptpd_SOURCES += libcck/timer/itimer.h\
+		libcck/timer/itimer.c
+endif
+
+if CCK_BUILD_TIMER_POSIX
+ptpd_SOURCES += libcck/timer/posix.h\
+		libcck/timer/posix.c
+endif
+
+if CCK_BUILD_TIMER_TIMERFD
+ptpd_SOURCES += libcck/timer/timerfd.h\
+		libcck/timer/timerfd.c
+endif
+
+if CCK_BUILD_SOLARIS_GETIFADDRS
+ptpd_SOURCES += libcck/compat/getifaddrs_solaris.c\
+		libcck/compat/ifaddrs.h
+endif
+
+if CCK_BUILD_DAEMON
+ptpd_SOURCES += libcck/compat/daemon.c
+endif
+
+
+#if CCK_BUILD_
+#ptpd_SOURCES += 
+#endif
+
+
+# SNMP
+if PTPD_SNMP
+ptpd_SOURCES += dep/snmp.c
 endif
 
 CSCOPE = cscope

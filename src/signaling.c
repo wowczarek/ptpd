@@ -45,19 +45,19 @@
 #define GRANT_MAX_MISSED 10
 
 static void updateUnicastIndex(UnicastGrantTable *table, UnicastGrantIndex *index);
-static UnicastGrantTable* lookupUnicastIndex(PortIdentity *portIdentity, Integer32 transportAddress, UnicastGrantIndex *index);
+static UnicastGrantTable* lookupUnicastIndex(PortIdentity *portIdentity, void *transportAddress, UnicastGrantIndex *index);
 static int msgIndex(Enumeration8 messageType);
 static Enumeration8 msgXedni(int messageIndex);
 static void initOutgoingMsgSignaling(PortIdentity* targetPortIdentity, MsgSignaling* outgoing, PtpClock *ptpClock);
-static void handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing, Integer32 sourceAddress, const RunTimeOpts *rtOpts, PtpClock *ptpClock);
-static void handleSMGrantUnicastTransmission(MsgSignaling* incoming, Integer32 sourceAddress, UnicastGrantTable *grantTable, int nodeCount, PtpClock *ptpClock);
-static Boolean handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing, Integer32 sourceAddress, PtpClock* ptpClock);
-static void handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming, Integer32 sourceAddress, PtpClock* ptpClock);
+static void handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing, void *sourceAddress, const GlobalConfig *global, PtpClock *ptpClock);
+static void handleSMGrantUnicastTransmission(MsgSignaling* incoming, void *sourceAddress, UnicastGrantTable *grantTable, int nodeCount, PtpClock *ptpClock);
+static Boolean handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing, void *sourceAddress, PtpClock* ptpClock);
+static void handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming, void *sourceAddress, PtpClock* ptpClock);
 static Boolean prepareSMRequestUnicastTransmission(MsgSignaling* outgoing, UnicastGrantData *grant, PtpClock* ptpClock);
 static Boolean prepareSMCancelUnicastTransmission(MsgSignaling* outgoing, UnicastGrantData* grant, PtpClock* ptpClock);
-static void requestUnicastTransmission(UnicastGrantData *grant, UInteger32 duration, const RunTimeOpts* rtOpts, PtpClock* ptpClock);
-static void issueSignaling(MsgSignaling *outgoing, Integer32 destination, const const RunTimeOpts *rtOpts, PtpClock *ptpclock);
-static void cancelNodeGrants(UnicastGrantTable *nodeTable, const RunTimeOpts *rtOpts, PtpClock *ptpClock);
+static void requestUnicastTransmission(UnicastGrantData *grant, UInteger32 duration, const GlobalConfig* global, PtpClock* ptpClock);
+static void issueSignaling(MsgSignaling *outgoing, void *destination, const GlobalConfig *global, PtpClock *ptpclock);
+static void cancelNodeGrants(UnicastGrantTable *nodeTable, const GlobalConfig *global, PtpClock *ptpClock);
 
 /* Return unicast grant array index for given message type */
 int
@@ -118,7 +118,7 @@ updateUnicastIndex(UnicastGrantTable *table, UnicastGrantIndex *index)
 
 /* return matching entry from index table */
 static UnicastGrantTable*
-lookupUnicastIndex(PortIdentity *portIdentity, Integer32 transportAddress, UnicastGrantIndex *index)
+lookupUnicastIndex(PortIdentity *portIdentity, void *transportAddress, UnicastGrantIndex *index)
 {
 
     uint32_t hash = fnvHash((void*)portIdentity, sizeof(PortIdentity), UNICAST_MAX_DESTINATIONS);
@@ -156,7 +156,7 @@ lookupUnicastIndex(PortIdentity *portIdentity, Integer32 transportAddress, Unica
 */
 UnicastGrantTable*
 findUnicastGrants
-(const PortIdentity* portIdentity, Integer32 transportAddress, UnicastGrantTable *grantTable, UnicastGrantIndex *index, int nodeCount, Boolean update)
+(const PortIdentity* portIdentity, void *transportAddress, UnicastGrantTable *grantTable, UnicastGrantIndex *index, int nodeCount, Boolean update)
 {
 
 	int i;
@@ -180,7 +180,7 @@ findUnicastGrants
 		 * (used by slave to preserve configured master addresses)
 		 */
 		if(update && transportAddress) {
-		    found->transportAddress = transportAddress;
+		    ptpAddrCopy(found->protocolAddress, transportAddress);
 		}
 		if(update) {
 		    found->portIdentity = tmpIdentity;
@@ -212,7 +212,7 @@ findUnicastGrants
 		 */
 
 		if(update && transportAddress) {
-		    found->transportAddress = transportAddress;
+		    ptpAddrCopy(found->protocolAddress, transportAddress);
 		}
 
 		if(update) {
@@ -230,14 +230,15 @@ findUnicastGrants
 	    }
 
 	    /* no port identity match but we have a transport address match */
-	    if(nodeTable->transportAddress &&
-		(nodeTable->transportAddress==transportAddress)) {
+	    if(!ptpAddrIsEmpty(nodeTable->protocolAddress) && !ptpAddrIsEmpty(transportAddress) &&
+		(!ptpAddrCompare(nodeTable->protocolAddress, transportAddress))) {
 
 		found = nodeTable;
 		if(update) {
 			found->portIdentity = tmpIdentity;
 			updateUnicastIndex(found, index);
 		}
+
 		break;
 	    }
 
@@ -250,7 +251,7 @@ findUnicastGrants
     /* will return NULL if there are no free slots, otherwise the first free slot */
     if(update && firstFree != NULL) {
 	firstFree->portIdentity = tmpIdentity;
-	firstFree->transportAddress = transportAddress;
+	ptpAddrCopy(firstFree->protocolAddress, transportAddress);
 	updateUnicastIndex(firstFree, index);
 	/* new set of grants - reset sequence numbers */
 	for(i=0; i < PTP_MAX_MESSAGE_INDEXED; i++) {
@@ -302,7 +303,7 @@ initOutgoingMsgSignaling(PortIdentity* targetPortIdentity, MsgSignaling* outgoin
 
 /**\brief Handle incoming REQUEST_UNICAST_TRANSMISSION signaling TLV type*/
 static void
-handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing, Integer32 sourceAddress, const RunTimeOpts *rtOpts, PtpClock *ptpClock)
+handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing, void *sourceAddress, const GlobalConfig *global, PtpClock *ptpClock)
 {
 
 	char portId[PATH_MAX];
@@ -313,8 +314,7 @@ handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoin
 	SMGrantUnicastTransmission* grantData = NULL;
 	Enumeration8 messageType = requestData->messageType;
 #ifdef RUNTIME_DEBUG
-	struct in_addr tmpAddr;
-	tmpAddr.s_addr = sourceAddress;
+	tmpstr(tmpAddr, ptpAddrStrLen(sourceAddress));
 #endif /* RUNTIME_DEBUG */
 	snprint_PortIdentity(portId, PATH_MAX, &incoming->header.sourcePortIdentity);
 
@@ -328,7 +328,7 @@ handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoin
 
 
 	DBG("Received REQUEST_UNICAST_TRANSMISSION message for message %s from %s(%s) - duration %d interval %d\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr), requestData->durationField,
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress), requestData->durationField,
 			requestData->logInterMessagePeriod);
 
 	nodeTable = findUnicastGrants(&incoming->header.sourcePortIdentity, sourceAddress, ptpClock->unicastGrants, &ptpClock->grantIndex, UNICAST_MAX_DESTINATIONS, TRUE);
@@ -336,17 +336,17 @@ handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoin
 	if(nodeTable == NULL) {
 		if(ptpClock->slaveCount >= UNICAST_MAX_DESTINATIONS) {
 			DBG("REQUEST_UNICAST_TRANSMISSION (%s): did not find node in slave table : %s (%s) - table full\n", getMessageTypeName(messageType),
-			inet_ntoa(tmpAddr),portId);
+			ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress),portId);
 		} else {
 		DBG("REQUEST_UNICAST_TRANSMISSION (%s): did not find node in slave table: %s (%s)\n", getMessageTypeName(messageType),
-			inet_ntoa(tmpAddr),portId);
+			ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress),portId);
 		}
 		/* fill the response with basic fields (namely messageType so the deny is valid */
 		goto finaliseResponse;
 	}
 
 	if(msgIndex(messageType) < 0) {
-	    DBG("Received unicast request from %s for unsupported message type %d\n", inet_ntoa(tmpAddr), messageType);
+	    DBG("Received unicast request from %s for unsupported message type %d\n", ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress), messageType);
 	    goto finaliseResponse;
 	}
 
@@ -362,19 +362,19 @@ handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoin
 
 	if(!myGrant->requestable) {
 		DBG("denied unicast transmission request for non-requestable message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 		myGrant->granted = FALSE;
 	}
 
 	if(!requestData->durationField) {
 		DBG("denied unicast transmission request for zero duration - message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 		granted = FALSE;
 	}
 
 	if(requestData->logInterMessagePeriod < myGrant->logMinInterval) {
 		DBG("denied unicast transmission request for too short interval - message %s from %s(%s), interval %d\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr), requestData->logInterMessagePeriod);
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress), requestData->logInterMessagePeriod);
 		granted = FALSE;
 	}
 
@@ -389,8 +389,8 @@ handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoin
 	    }
 
 	    /* only offer up to the maximum duration configured, but preserve a 30 second minimum */
-	    if(requestData->durationField > rtOpts->unicastGrantDuration) {
-		grantData->durationField = rtOpts->unicastGrantDuration;
+	    if(requestData->durationField > global->unicastGrantDuration) {
+		grantData->durationField = global->unicastGrantDuration;
 	    } else if(requestData->durationField <= 30) {
 		grantData->durationField = 30;
 	    } else {
@@ -398,7 +398,7 @@ handleSMRequestUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoin
 	    }
 
 	    DBG("granted unicast transmission request - message %s to %s(%s), interval %d, duration %d s\n",
-		getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr), grantData->logInterMessagePeriod,
+		getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress), grantData->logInterMessagePeriod,
 		grantData->durationField);
 
 	    myGrant->duration = grantData->durationField;
@@ -445,7 +445,7 @@ finaliseResponse:
 
 /**\brief Handle incoming GRANT_UNICAST_TRANSMISSION signaling message type*/
 static void
-handleSMGrantUnicastTransmission(MsgSignaling* incoming, Integer32 sourceAddress, UnicastGrantTable *grantTable, int nodeCount, PtpClock *ptpClock)
+handleSMGrantUnicastTransmission(MsgSignaling* incoming, void *sourceAddress, UnicastGrantTable *grantTable, int nodeCount, PtpClock *ptpClock)
 {
 
 	char portId[PATH_MAX];
@@ -454,14 +454,13 @@ handleSMGrantUnicastTransmission(MsgSignaling* incoming, Integer32 sourceAddress
 	Enumeration8 messageType = incomingGrant->messageType;
 	UnicastGrantTable *nodeTable;
 #ifdef RUNTIME_DEBUG
-	struct in_addr tmpAddr;
-	tmpAddr.s_addr = sourceAddress;
+	tmpstr(tmpAddr, ptpAddrStrLen(sourceAddress));
 #endif /* RUNTIME_DEBUG */
 
 	snprint_PortIdentity(portId, PATH_MAX, &incoming->header.sourcePortIdentity);
 
 	DBGV("Received GRANT_UNICAST_TRANSMISSION message for message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 
 	nodeTable = findUnicastGrants(&incoming->header.sourcePortIdentity, sourceAddress, grantTable, &ptpClock->grantIndex, nodeCount, TRUE);
 
@@ -471,7 +470,7 @@ handleSMGrantUnicastTransmission(MsgSignaling* incoming, Integer32 sourceAddress
 	}
 
 	if(msgIndex(messageType) < 0) {
-	    DBG("Received unicast grant from %s for unsupported message type %d\n", inet_ntoa(tmpAddr), messageType);
+	    DBG("Received unicast grant from %s for unsupported message type %d\n", ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress), messageType);
 	    return;
 	}
 
@@ -479,20 +478,20 @@ handleSMGrantUnicastTransmission(MsgSignaling* incoming, Integer32 sourceAddress
 
 	if(!myGrant->requestable) {
 		DBG("received unicat grant for non-requestable message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 		return;
 	}
 
 	if(!myGrant->requested) {
 		DBG("received unicast grant for not requested message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 		return;
 	}
 
 	if(incomingGrant->durationField == 0) {
 		DBG("unicast transmission request for message %s interval %d duration %d s denied by %s(%s)\n",
 			getMessageTypeName(messageType), myGrant->logInterval, myGrant->duration,
-			portId, inet_ntoa(tmpAddr));
+			portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 
 		ptpClock->counters.unicastGrantsDenied++;
 
@@ -528,7 +527,7 @@ handleSMGrantUnicastTransmission(MsgSignaling* incoming, Integer32 sourceAddress
 
 /**\brief Handle incoming CANCEL_UNICAST_TRANSMISSION signaling message type*/
 static Boolean
-handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing, Integer32 sourceAddress, PtpClock* ptpClock)
+handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing, void *sourceAddress, PtpClock* ptpClock)
 {
 	DBGV("Received CANCEL_UNICAST_TRANSMISSION message\n");
 
@@ -540,8 +539,7 @@ handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing
 	Enumeration8 messageType = requestData->messageType;
 	UnicastGrantTable *nodeTable;
 #ifdef RUNTIME_DEBUG
-	struct in_addr tmpAddr;
-	tmpAddr.s_addr = sourceAddress;
+	tmpstr(tmpAddr, ptpAddrStrLen(sourceAddress));
 #endif /* RUNTIME_DEBUG */
 
 	initOutgoingMsgSignaling(&incoming->header.sourcePortIdentity, outgoing, ptpClock);
@@ -554,7 +552,7 @@ handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing
 	snprint_PortIdentity(portId, PATH_MAX, &incoming->header.sourcePortIdentity);
 
 	DBGV("Received CANCEL_UNICAST_TRANSMISSION message for message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 
 	ptpClock->counters.unicastGrantsCancelReceived++;
 
@@ -566,7 +564,7 @@ handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing
 	}
 
 	if(msgIndex(messageType) < 0) {
-		DBG("Received cancel unicast request from %s for unsupported message type %d\n", inet_ntoa(tmpAddr), messageType);
+		DBG("Received cancel unicast request from %s for unsupported message type %d\n", ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress), messageType);
 		return FALSE;
 	}
 
@@ -574,19 +572,19 @@ handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing
 
 	if(!myGrant->requestable) {
 		DBG("cancel grant attempt for non-requestable message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 		return FALSE;
 	}
 
 	if(!myGrant->requested) {
 		DBG("cancel grant attempt for not requested message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 		return FALSE;
 	}
 
 	if(!myGrant->granted) {
 		DBG("cancel grant attempt for not granted message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 		return FALSE;
 	}
 
@@ -602,7 +600,7 @@ handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing
 	myGrant->duration = 0;
 
 	DBG("Accepted CANCEL_UNICAST_TRANSMISSION message for message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 
 	acknowledgeData->messageType = requestData->messageType;
 	acknowledgeData->reserved0 = 0;
@@ -613,7 +611,7 @@ handleSMCancelUnicastTransmission(MsgSignaling* incoming, MsgSignaling* outgoing
 
 /**\brief Handle incoming ACKNOWLEDGE_CANCEL_UNICAST_TRANSMISSION signaling message type*/
 static void
-handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming, Integer32 sourceAddress, PtpClock* ptpClock)
+handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming, void *sourceAddress, PtpClock* ptpClock)
 {
 
 	char portId[PATH_MAX];
@@ -624,14 +622,13 @@ handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming, Integer32 s
 	UnicastGrantTable *nodeTable;
 
 #ifdef RUNTIME_DEBUG
-	struct in_addr tmpAddr;
-	tmpAddr.s_addr = sourceAddress;
+	tmpstr(tmpAddr, ptpAddrStrLen(sourceAddress));
 #endif /* RUNTIME_DEBUG */
 
 	snprint_PortIdentity(portId, PATH_MAX, &incoming->header.sourcePortIdentity);
 
 	DBGV("Received ACKNOWLEDGE_CANCEL_UNICAST_TRANSMISSION message for message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 
 	nodeTable = findUnicastGrants(&incoming->header.sourcePortIdentity, sourceAddress, ptpClock->unicastGrants, &ptpClock->grantIndex, UNICAST_MAX_DESTINATIONS, FALSE);
 
@@ -640,7 +637,7 @@ handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming, Integer32 s
 	}
 
 	if(msgIndex(messageType) < 0) {
-	    DBG("Received unicast acknowledge ancer from %s for unsupported message type %d\n", inet_ntoa(tmpAddr), messageType);
+	    DBG("Received unicast acknowledge ancer from %s for unsupported message type %d\n", ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress), messageType);
 	    return;
 	}
 
@@ -648,12 +645,12 @@ handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming, Integer32 s
 
 	if(!myGrant->requestable) {
 		DBG("acknowledge cancel grant attempt for non-requestable message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 	}
 
 	if(!myGrant->canceled) {
 		DBG("acknowledge cancel grant received for not canceled message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 	}
 
 	myGrant->granted = FALSE;
@@ -668,7 +665,7 @@ handleSMAcknowledgeCancelUnicastTransmission(MsgSignaling* incoming, Integer32 s
 	ptpClock->counters.unicastGrantsCancelAckReceived++;
 
 	DBG("Accepted ACKNOWLEDGE_CANCEL_UNICAST_TRANSMISSION message for message %s from %s(%s)\n",
-			getMessageTypeName(messageType), portId, inet_ntoa(tmpAddr));
+			getMessageTypeName(messageType), portId, ptpAddrToString(tmpAddr, tmpAddr_len, sourceAddress));
 
 }
 
@@ -761,7 +758,7 @@ prepareSMCancelUnicastTransmission(MsgSignaling* outgoing, UnicastGrantData* gra
 /* prepare unicast grant table for use, and mark the right ones requestable */
 void
 initUnicastGrantTable(UnicastGrantTable *grantTable, Enumeration8 delayMechanism, int nodeCount, UnicastDestination *destinations,
-			const RunTimeOpts *rtOpts, PtpClock *ptpClock)
+			const GlobalConfig *global, PtpClock *ptpClock)
 {
 
     int i,j;
@@ -772,23 +769,26 @@ initUnicastGrantTable(UnicastGrantTable *grantTable, Enumeration8 delayMechanism
     /* initialise the index table */
     for(i=0; i < UNICAST_MAX_DESTINATIONS; i++) {
 	ptpClock->grantIndex.data[i] = NULL;
-	ptpClock->syncDestIndex[i].transportAddress = 0;
+	ptpAddrClear(ptpClock->syncDestIndex[i].protocolAddress);
     }
 
-    ptpClock->grantIndex.portMask = rtOpts->unicastPortMask;
+    ptpClock->grantIndex.portMask = global->unicastPortMask;
 
-    for(j=0; j<nodeCount; j++) {   
+    for(j=0; j<nodeCount; j++) {
 
 	nodeTable = &grantTable[j];
-	
-	memset(nodeTable, 0, sizeof(UnicastGrantTable));
 
-	if(destinations != NULL && (destinations[j].transportAddress != 0)) {
-	    nodeTable->transportAddress = destinations[j].transportAddress;
+	/* preserve protocolAddress as it is dynamically allocated */
+	void *tmpPa = nodeTable->protocolAddress;
+	memset(nodeTable, 0, sizeof(UnicastGrantTable));
+	nodeTable->protocolAddress = tmpPa;
+
+	if(destinations != NULL && !ptpAddrIsEmpty(destinations[j].protocolAddress)) {
+	    ptpAddrCopy(nodeTable->protocolAddress, destinations[j].protocolAddress);
 	    nodeTable->domainNumber = destinations[j].domainNumber;
 	    nodeTable->localPreference = destinations[j].localPreference;
 	    if(nodeTable->domainNumber == 0) {
-		nodeTable->domainNumber = rtOpts->domainNumber;
+		nodeTable->domainNumber = global->domainNumber;
 	    }
 	    /* for masters: all-ones initially */
 	    nodeTable->portIdentity.portNumber = 0xFFFF;
@@ -808,8 +808,8 @@ initUnicastGrantTable(UnicastGrantTable *grantTable, Enumeration8 delayMechanism
 
 		case PDELAY_RESP:
 
-		    grantData->logMinInterval = rtOpts->logMinPdelayReqInterval;
-		    grantData->logMaxInterval = rtOpts->logMaxPdelayReqInterval;
+		    grantData->logMinInterval = global->logMinPdelayReqInterval;
+		    grantData->logMaxInterval = global->logMaxPdelayReqInterval;
 		    grantData->logInterval = grantData->logMinInterval;
 		    if(delayMechanism != P2P) break;
 		    grantData->requestable = TRUE;
@@ -818,16 +818,16 @@ initUnicastGrantTable(UnicastGrantTable *grantTable, Enumeration8 delayMechanism
 
 		case ANNOUNCE:
 
-		    grantData->logMinInterval = rtOpts->logAnnounceInterval;
-		    grantData->logMaxInterval = rtOpts->logMaxAnnounceInterval;
+		    grantData->logMinInterval = global->logAnnounceInterval;
+		    grantData->logMaxInterval = global->logMaxAnnounceInterval;
 		    grantData->logInterval = grantData->logMinInterval;
 		    grantData->requestable = TRUE;
 		    break;		   
 
 		case SYNC:
 
-		    grantData->logMinInterval = rtOpts->logSyncInterval;
-		    grantData->logMaxInterval = rtOpts->logMaxSyncInterval;
+		    grantData->logMinInterval = global->logSyncInterval;
+		    grantData->logMaxInterval = global->logMaxSyncInterval;
 		    grantData->logInterval = grantData->logMinInterval;
 		    grantData->requestable = TRUE;
 		    break;		   
@@ -835,8 +835,8 @@ initUnicastGrantTable(UnicastGrantTable *grantTable, Enumeration8 delayMechanism
 		case DELAY_RESP:
 
 		    if(delayMechanism != E2E) break;
-		    grantData->logMinInterval = rtOpts->logMinDelayReqInterval;
-		    grantData->logMaxInterval = rtOpts->logMaxDelayReqInterval;
+		    grantData->logMinInterval = global->logMinDelayReqInterval;
+		    grantData->logMaxInterval = global->logMaxDelayReqInterval;
 		    grantData->logInterval = grantData->logMinInterval;
 		    grantData->requestable = TRUE;
 		    break;		   
@@ -857,7 +857,7 @@ initUnicastGrantTable(UnicastGrantTable *grantTable, Enumeration8 delayMechanism
  * so that messages are re-requested
  */
 void
-updateUnicastGrantTable(UnicastGrantTable *grantTable, int nodeCount, const RunTimeOpts *rtOpts)
+updateUnicastGrantTable(UnicastGrantTable *grantTable, int nodeCount, const GlobalConfig *global)
 {
 
     int i,j;
@@ -880,8 +880,8 @@ updateUnicastGrantTable(UnicastGrantTable *grantTable, int nodeCount, const RunT
 
 		case PDELAY_RESP:
 
-		    grantData->logMinInterval = rtOpts->logMinPdelayReqInterval;
-		    grantData->logMaxInterval = rtOpts->logMaxPdelayReqInterval;
+		    grantData->logMinInterval = global->logMinPdelayReqInterval;
+		    grantData->logMaxInterval = global->logMaxPdelayReqInterval;
 		    grantData->logInterval = grantData->logMinInterval;
 		    grantData->timeLeft = 0;
 		    break;
@@ -889,24 +889,24 @@ updateUnicastGrantTable(UnicastGrantTable *grantTable, int nodeCount, const RunT
 		case ANNOUNCE:
 
 		   
-		    grantData->logMinInterval = rtOpts->logAnnounceInterval;
-		    grantData->logMaxInterval = rtOpts->logMaxAnnounceInterval;
+		    grantData->logMinInterval = global->logAnnounceInterval;
+		    grantData->logMaxInterval = global->logMaxAnnounceInterval;
 		    grantData->logInterval = grantData->logMinInterval;
 		    grantData->timeLeft = 0;
 		    break;		   
 
 		case SYNC:
 
-		    grantData->logMinInterval = rtOpts->logSyncInterval;
-		    grantData->logMaxInterval = rtOpts->logMaxSyncInterval;
+		    grantData->logMinInterval = global->logSyncInterval;
+		    grantData->logMaxInterval = global->logMaxSyncInterval;
 		    grantData->logInterval = grantData->logMinInterval;
 		    grantData->timeLeft = 0;
 		    break;		   
 
 		case DELAY_RESP:
 
-		    grantData->logMinInterval = rtOpts->logMinDelayReqInterval;
-		    grantData->logMaxInterval = rtOpts->logMaxDelayReqInterval;
+		    grantData->logMinInterval = global->logMinDelayReqInterval;
+		    grantData->logMaxInterval = global->logMaxDelayReqInterval;
 		    grantData->logInterval = grantData->logMinInterval;
 		    grantData->timeLeft = 0;
 		    break;		   
@@ -925,7 +925,7 @@ updateUnicastGrantTable(UnicastGrantTable *grantTable, int nodeCount, const RunT
 }
 
 static void
-requestUnicastTransmission(UnicastGrantData *grant, UInteger32 duration, const RunTimeOpts* rtOpts, PtpClock* ptpClock)
+requestUnicastTransmission(UnicastGrantData *grant, UInteger32 duration, const GlobalConfig* global, PtpClock* ptpClock)
 {
 
 	if(duration == 0) {
@@ -944,7 +944,7 @@ requestUnicastTransmission(UnicastGrantData *grant, UInteger32 duration, const R
 			if(grant->parent->domainNumber != 0) {
 			    ptpClock->outgoingSignalingTmp.header.domainNumber = grant->parent->domainNumber;
 			}
-			issueSignaling(&ptpClock->outgoingSignalingTmp, grant->parent->transportAddress, rtOpts, ptpClock);
+			issueSignaling(&ptpClock->outgoingSignalingTmp, grant->parent->protocolAddress, global, ptpClock);
 			ptpClock->counters.unicastGrantsRequested++;
 			/* ready to be monitored */
 			grant->requested = TRUE;
@@ -960,7 +960,7 @@ requestUnicastTransmission(UnicastGrantData *grant, UInteger32 duration, const R
 }
 
 void
-cancelUnicastTransmission(UnicastGrantData* grant, const const RunTimeOpts* rtOpts, PtpClock* ptpClock)
+cancelUnicastTransmission(UnicastGrantData* grant, const GlobalConfig* global, PtpClock* ptpClock)
 {
 
 /* todo: dbg sending */
@@ -969,7 +969,7 @@ cancelUnicastTransmission(UnicastGrantData* grant, const const RunTimeOpts* rtOp
 			if(grant->parent->domainNumber != 0) {
 			    ptpClock->outgoingSignalingTmp.header.domainNumber = grant->parent->domainNumber;
 			}
-			issueSignaling(&ptpClock->outgoingSignalingTmp, grant->parent->transportAddress, rtOpts, ptpClock);
+			issueSignaling(&ptpClock->outgoingSignalingTmp, grant->parent->protocolAddress, global, ptpClock);
 			ptpClock->counters.unicastGrantsCancelSent++;
 	}
 
@@ -980,7 +980,7 @@ cancelUnicastTransmission(UnicastGrantData* grant, const const RunTimeOpts* rtOp
 }
 
 static void
-issueSignaling(MsgSignaling *outgoing, Integer32 destination, const const RunTimeOpts *rtOpts,
+issueSignaling(MsgSignaling *outgoing, void *destination, const GlobalConfig *global,
 		PtpClock *ptpClock)
 {
 
@@ -994,12 +994,8 @@ issueSignaling(MsgSignaling *outgoing, Integer32 destination, const const RunTim
 
 	msgPackSignaling( ptpClock->msgObuf, outgoing, ptpClock);
 
-	if(!netSendGeneral(ptpClock->msgObuf, outgoing->header.messageLength,
-			   &ptpClock->netPath, rtOpts, destination)) {
-		DBGV("Signaling message  can't be sent -> FAULTY state \n");
-		ptpClock->counters.messageSendErrors++;
-		toState(PTP_FAULTY, rtOpts, ptpClock);
-	} else {
+	if (sendPtpData(ptpClock, PTPMSG_GENERAL, ptpClock->msgObuf,
+	    outgoing->header.messageLength, destination, NULL)) {
 		DBG("Signaling msg sent \n");
 		ptpClock->counters.signalingMessagesSent++;
 	}
@@ -1007,7 +1003,7 @@ issueSignaling(MsgSignaling *outgoing, Integer32 destination, const const RunTim
 
 /* cancel all given or requested grants for a given clock node */
 static void
-cancelNodeGrants(UnicastGrantTable *nodeTable, const RunTimeOpts *rtOpts, PtpClock *ptpClock)
+cancelNodeGrants(UnicastGrantTable *nodeTable, const GlobalConfig *global, PtpClock *ptpClock)
 {
 
     int i;
@@ -1021,9 +1017,9 @@ cancelNodeGrants(UnicastGrantTable *nodeTable, const RunTimeOpts *rtOpts, PtpClo
 	}
 
 	if(grantData->granted) {
-	    cancelUnicastTransmission(grantData, rtOpts, ptpClock);
-	    /* sleep 250 to 500 us so that we don't flood the node */
-	    usleep(250+round(getRand()*250));
+	    cancelUnicastTransmission(grantData, global, ptpClock);
+	    /* sleep 100 to 200 us so that we don't flood the node */
+	    usleep(100+round(getRand()*100));
 	}
 
     }
@@ -1031,20 +1027,20 @@ cancelNodeGrants(UnicastGrantTable *nodeTable, const RunTimeOpts *rtOpts, PtpClo
 
 /* cancel all given or requested unicast grants */
 void
-cancelAllGrants(UnicastGrantTable *grantTable, int nodeCount, const RunTimeOpts *rtOpts, PtpClock *ptpClock)
+cancelAllGrants(UnicastGrantTable *grantTable, int nodeCount, const GlobalConfig *global, PtpClock *ptpClock)
 {
 
     int i;
 
     for(i=0; i<nodeCount; i++) {
-	cancelNodeGrants(&grantTable[i], rtOpts, ptpClock);
+	cancelNodeGrants(&grantTable[i], global, ptpClock);
     }
 
 }
 
 void
 handleSignaling(MsgHeader *header,
-		 Boolean isFromSelf, Integer32 sourceAddress, const RunTimeOpts *rtOpts, PtpClock *ptpClock)
+		 Boolean isFromSelf, void *sourceAddress, const GlobalConfig *global, PtpClock *ptpClock)
 {
 	DBG("Signaling message received : \n");
 
@@ -1087,12 +1083,12 @@ handleSignaling(MsgHeader *header,
 	{
 	case TLV_REQUEST_UNICAST_TRANSMISSION:
 		DBGV("handleSignaling: Request Unicast Transmission\n");
-		if(!rtOpts->unicastNegotiation || rtOpts->ipMode!=IPMODE_UNICAST) {
+		if(!global->unicastNegotiation || global->transportMode!=TMODE_UC) {
 			DBGV("handleSignaling: Ignoring unicast negotiation message - not running unicast or negotiation not enabled\n");
 			ptpClock->counters.discardedMessages++;
 			goto end;
 		}
-		if( (ptpClock->portDS.portState==PTP_LISTENING && !rtOpts->unicastNegotiationListening) ||
+		if( (ptpClock->portDS.portState==PTP_LISTENING && !global->unicastNegotiationListening) ||
 		    ptpClock->portDS.portState==PTP_DISABLED || ptpClock->portDS.portState == PTP_INITIALIZING ||
 		    ptpClock->portDS.portState==PTP_FAULTY) {
 	        	    DBG("Will not grant unicast transmission requests in %s state\n",
@@ -1101,20 +1097,20 @@ handleSignaling(MsgHeader *header,
         		    goto end;
 		}
 		unpackSMRequestUnicastTransmission(ptpClock->msgIbuf + tlvOffset, &ptpClock->msgTmp.signaling, ptpClock);
-		handleSMRequestUnicastTransmission(&ptpClock->msgTmp.signaling, &ptpClock->outgoingSignalingTmp, sourceAddress, rtOpts, ptpClock);
+		handleSMRequestUnicastTransmission(&ptpClock->msgTmp.signaling, &ptpClock->outgoingSignalingTmp, sourceAddress, global, ptpClock);
 		/* send back the outgoing signaling message */
 		if(ptpClock->outgoingSignalingTmp.tlv->tlvType == TLV_GRANT_UNICAST_TRANSMISSION) {
-			issueSignaling(&ptpClock->outgoingSignalingTmp, sourceAddress,rtOpts, ptpClock);
+			issueSignaling(&ptpClock->outgoingSignalingTmp, sourceAddress,global, ptpClock);
 		}
 		break;
 	case TLV_CANCEL_UNICAST_TRANSMISSION:
 		DBGV("handleSignaling: Cancel Unicast Transmission\n");
-		if(!rtOpts->unicastNegotiation || rtOpts->ipMode!=IPMODE_UNICAST) {
+		if(!global->unicastNegotiation || global->transportMode!=TMODE_UC) {
 			DBGV("handleSignaling: Ignoring unicast negotiation message - not running unicast or negotiation not enabled\n");
 			ptpClock->counters.discardedMessages++;
 			goto end;
 		}
-		if( (ptpClock->portDS.portState==PTP_LISTENING && !rtOpts->unicastNegotiationListening) ||
+		if( (ptpClock->portDS.portState==PTP_LISTENING && !global->unicastNegotiationListening) ||
 		    ptpClock->portDS.portState==PTP_DISABLED || ptpClock->portDS.portState == PTP_INITIALIZING ||
 		    ptpClock->portDS.portState==PTP_FAULTY) {
 	        	    DBG("Will not cancel unicast transmission requests in %s state\n",
@@ -1125,18 +1121,18 @@ handleSignaling(MsgHeader *header,
 		unpackSMCancelUnicastTransmission(ptpClock->msgIbuf + tlvOffset, &ptpClock->msgTmp.signaling, ptpClock);
 		/* send back the cancel acknowledgment - if we have something to acknowledge*/
 		if(handleSMCancelUnicastTransmission(&ptpClock->msgTmp.signaling, &ptpClock->outgoingSignalingTmp, sourceAddress, ptpClock)) {
-			issueSignaling(&ptpClock->outgoingSignalingTmp, sourceAddress,rtOpts, ptpClock);
+			issueSignaling(&ptpClock->outgoingSignalingTmp, sourceAddress,global, ptpClock);
 			ptpClock->counters.unicastGrantsCancelAckSent++;
 		}
 		break;
 	case TLV_ACKNOWLEDGE_CANCEL_UNICAST_TRANSMISSION:
 		DBGV("handleSignaling: Acknowledge Cancel Unicast Transmission\n");
-		if(!rtOpts->unicastNegotiation || rtOpts->ipMode!=IPMODE_UNICAST) {
+		if(!global->unicastNegotiation || global->transportMode!=TMODE_UC) {
 			DBGV("handleSignaling: Ignoring unicast negotiation message - not running unicast or negotiation not enabled\n");
 			ptpClock->counters.discardedMessages++;
 			goto end;
 		}
-		if( (ptpClock->portDS.portState==PTP_LISTENING && !rtOpts->unicastNegotiationListening) ||
+		if( (ptpClock->portDS.portState==PTP_LISTENING && !global->unicastNegotiationListening) ||
 		    ptpClock->portDS.portState==PTP_DISABLED || ptpClock->portDS.portState == PTP_INITIALIZING ||
 		    ptpClock->portDS.portState==PTP_FAULTY) {
 	        	    DBG("Will not process acknowledge cancel unicast transmission in %s state\n",
@@ -1149,7 +1145,7 @@ handleSignaling(MsgHeader *header,
 		break;
 	case TLV_GRANT_UNICAST_TRANSMISSION:
 		DBGV("handleSignaling: Grant Unicast Transmission\n");
-		if(!rtOpts->unicastNegotiation || rtOpts->ipMode!=IPMODE_UNICAST) {
+		if(!global->unicastNegotiation || global->transportMode!=TMODE_UC) {
 			DBGV("handleSignaling: Ignoring unicast negotiation message - not running unicast or negotiation not enabled\n");
 			ptpClock->counters.discardedMessages++;
 			goto end;
@@ -1197,7 +1193,7 @@ handleSignaling(MsgHeader *header,
 }
 
 void
-refreshUnicastGrants(UnicastGrantTable *grantTable, int nodeCount, const RunTimeOpts *rtOpts, PtpClock *ptpClock)
+refreshUnicastGrants(UnicastGrantTable *grantTable, int nodeCount, const GlobalConfig *global, PtpClock *ptpClock)
 {
 
     static int everyN = 0;
@@ -1299,9 +1295,9 @@ refreshUnicastGrants(UnicastGrantTable *grantTable, int nodeCount, const RunTime
 		/* if we're slave, we request; if we're master, we cancel */
 		if(actionRequired) {
 		    if (ptpClock->defaultDS.slaveOnly || nodeTable->isPeer) {
-			requestUnicastTransmission(grantData, rtOpts->unicastGrantDuration, rtOpts, ptpClock);
+			requestUnicastTransmission(grantData, global->unicastGrantDuration, global, ptpClock);
 		    } else {
-			cancelUnicastTransmission(grantData, rtOpts, ptpClock);
+			cancelUnicastTransmission(grantData, global, ptpClock);
 		    }
 		}
 
@@ -1328,9 +1324,9 @@ refreshUnicastGrants(UnicastGrantTable *grantTable, int nodeCount, const RunTime
 	}
 	/* we have some old requests to cancel, we changed the GM - keep the Announce coming though */
 	if(ptpClock->previousGrants != NULL) {
-	    cancelUnicastTransmission(&(ptpClock->previousGrants->grantData[SYNC_INDEXED]), rtOpts, ptpClock);
-	    cancelUnicastTransmission(&(ptpClock->previousGrants->grantData[DELAY_RESP_INDEXED]), rtOpts, ptpClock);
-	    cancelUnicastTransmission(&(ptpClock->previousGrants->grantData[PDELAY_RESP_INDEXED]), rtOpts, ptpClock);
+	    cancelUnicastTransmission(&(ptpClock->previousGrants->grantData[SYNC_INDEXED]), global, ptpClock);
+	    cancelUnicastTransmission(&(ptpClock->previousGrants->grantData[DELAY_RESP_INDEXED]), global, ptpClock);
+	    cancelUnicastTransmission(&(ptpClock->previousGrants->grantData[PDELAY_RESP_INDEXED]), global, ptpClock);
 	    /* do not reset the other master's clock ID! ...you little bollocks you */
 	    /*
 	    ptpClock->previousGrants->portIdentity.portNumber = 0xFFFF;
@@ -1346,7 +1342,7 @@ refreshUnicastGrants(UnicastGrantTable *grantTable, int nodeCount, const RunTime
 		if (!nodeTable->grantData[SYNC_INDEXED].requested) {
 			grantData=&nodeTable->grantData[SYNC_INDEXED];
 			requestUnicastTransmission(grantData,
-			    rtOpts->unicastGrantDuration, rtOpts, ptpClock);
+			    global->unicastGrantDuration, global, ptpClock);
 		
 		}
 
@@ -1356,14 +1352,14 @@ refreshUnicastGrants(UnicastGrantTable *grantTable, int nodeCount, const RunTime
 			    if(!nodeTable->grantData[DELAY_RESP_INDEXED].requested) {
 				grantData=&nodeTable->grantData[DELAY_RESP_INDEXED];
 				requestUnicastTransmission(grantData,
-				    rtOpts->unicastGrantDuration, rtOpts, ptpClock);
+				    global->unicastGrantDuration, global, ptpClock);
 			    }
 			    break;
 			case P2P:
 			    if(!nodeTable->grantData[PDELAY_RESP_INDEXED].requested) {
 				grantData=&nodeTable->grantData[PDELAY_RESP_INDEXED];
 				requestUnicastTransmission(grantData,
-				    rtOpts->unicastGrantDuration, rtOpts, ptpClock);
+				    global->unicastGrantDuration, global, ptpClock);
 			    }
 			    break;
 			default:

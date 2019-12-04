@@ -1,4 +1,4 @@
-/* Copyright (c) 2015 Wojciech Owczarek,
+/* Copyright (c) 2015-2017 Wojciech Owczarek,
  *
  * All Rights Reserved
  *
@@ -32,12 +32,20 @@
  *
  */
 
-#include "../ptpd.h"
+#include <string.h>
+#include <math.h>
+
+#include <libcck/cck_utils.h>
+#include <libcck/clockdriver.h>
+#include <libcck/cck_logger.h>
+
 #include "piservo.h"
+
 
 #define THIS_COMPONENT "servo: "
 
-static double feed (PIservo*, Integer32, double);
+static double feed (PIservo*, double, double);
+static double simulate (PIservo*, double);
 static void prime (PIservo *, double);
 static void reset (PIservo*);
 
@@ -46,27 +54,27 @@ void
 setupPIservo(PIservo *self) {
     memset(self, 0, sizeof(PIservo));
     self->feed = feed;
+    self->simulate = simulate;
     self->prime = prime;
     self->reset = reset;
     self->delayFactor = 1.0;
 }
 
 static double
-feed (PIservo* self, Integer32 input, double tau) {
+feed (PIservo* self, double input, double tau) {
 
-    TimeInternal now, delta;
-
-    Boolean runningMaxOutput;
+    CckTimestamp now, delta;
+    bool runningMaxOutput;
 
     self->input = input;
 
     switch(self->tauMethod) {
 	case DT_MEASURED:
 	    getSystemClock()->getTimeMonotonic(getSystemClock(), &now);
-	    if(isTimeZero(&self->lastUpdate)) {
+	    if(tsOps.isZero(&self->lastUpdate)) {
 		self->tau = 1.0;
 	    } else {
-		subTime(&delta, &now, &self->lastUpdate);
+		tsOps.sub(&delta, &now, &self->lastUpdate);
 		self->tau = delta.seconds + delta.nanoseconds / 1E9;
 	    }
 
@@ -87,28 +95,25 @@ feed (PIservo* self, Integer32 input, double tau) {
 	self->tau = 1.0;
     }
 
-    self->integral = clampDouble(self->integral, self->maxOutput);
-    self->output = clampDouble(self->output, self->maxOutput);
-
     if (self->kP < 0.000001)
 	    self->kP = 0.000001;
     if (self->kI < 0.000001)
 	    self->kI = 0.000001;
 
-    self->integral += (self->tau / self->delayFactor) * ((input + 0.0 ) * self->kI);
-    self->output = (self->kP * (input + 0.0) ) + self->integral;
+    self->integral += (self->tau * self->delayFactor) * (input * NS_PER_SEC * self->kI);
+    self->integral = clamp(self->integral, self->maxOutput);
 
-    self->integral = clampDouble(self->integral, self->maxOutput);
-    self->output = clampDouble(self->output, self->maxOutput);
+    self->output = (self->kP * input * NS_PER_SEC ) + self->integral;
+    self->output = clamp(self->output, self->maxOutput);
 
     runningMaxOutput = (fabs(self->output) >= self->maxOutput);
 
     if(self->controller) {
-	DBG("%s tau %.09f input %d fabs %f out %f, mo %f\n", self->controller->name, self->tau, input, fabs(self->output), self->output, self->maxOutput);
+	CCK_DBG("%s tau %.09f input %d fabs %f out %f, mo %f\n", self->controller->name, self->tau, input, fabs(self->output), self->output, self->maxOutput);
     }
 
     if(runningMaxOutput && !self->runningMaxOutput) {
-	    WARNING(THIS_COMPONENT"Clock %s servo now running at maximum output\n", self->controller->name);
+	    CCK_WARNING(THIS_COMPONENT"Clock %s servo now running at maximum output\n", self->controller->name);
     }
 
     self->runningMaxOutput = runningMaxOutput;
@@ -117,7 +122,7 @@ feed (PIservo* self, Integer32 input, double tau) {
 	self->lastUpdate = now;
     }
 
-    self->_updated = TRUE;
+    self->_updated = true;
     self->_lastInput = self->input;
     self->_lastOutput = self->output;
 
@@ -125,12 +130,29 @@ feed (PIservo* self, Integer32 input, double tau) {
 
 }
 
+static double
+simulate (PIservo* self, double input) {
+
+    double integral = self->integral;
+    double output;
+
+    integral += (self->tau * self->delayFactor) * (input * NS_PER_SEC * self->kI);
+    integral = clamp(integral, self->maxOutput);
+
+    output = (self->kP * input * NS_PER_SEC) + integral;
+    output = clamp(output, self->maxOutput);
+
+    return output;
+
+}
+
+
 static void
 prime (PIservo *self, double integral) {
 
-    Boolean runningMaxOutput;
+    bool runningMaxOutput;
 
-    integral = clampDouble(integral, self->maxOutput);
+    integral = clamp(integral, self->maxOutput);
 
     self->integral = integral;
     self->output = integral;
@@ -138,7 +160,7 @@ prime (PIservo *self, double integral) {
     runningMaxOutput = (fabs(self->output) >= self->maxOutput);
 
     if(runningMaxOutput && !self->runningMaxOutput) {
-	    DBG(THIS_COMPONENT"Clock %s servo now running at maximum output\n", self->controller->name);
+	    CCK_DBG(THIS_COMPONENT"Clock %s servo now running at maximum output\n", self->controller->name);
     }
 
     self->runningMaxOutput = runningMaxOutput;
@@ -147,17 +169,11 @@ prime (PIservo *self, double integral) {
 
 static void
 reset (PIservo* self) {
-
     self->input = 0;
     self->output = 0;
     self->integral = 0;
-    self->_updated = FALSE;
+    self->_updated = false;
     self->_lastInput = 0;
     self->_lastOutput = 0;
     self->delayFactor = 1.0;
-
 }
-
-
-
-

@@ -1,17 +1,74 @@
+/* Copyright (c) 2016-2017 Wojciech Owczarek,
+ *
+ * All Rights Reserved
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/**
+ * @file   clockdriver.def
+ * @date   Sat Jan 9 16:14:10 2016
+ *
+ * @brief  Component implementation list / x-macro for the ClockDriver type
+ *
+ */
+
+
 /*
  * Register available clock drivers here (we are so modular...)
- * If not included in the REGISTER_CLOCKDRIVER context,
- * just include the headers. The REGISTER_CLOCKDRIVER x-macro
+ * If not included in the CCK_REGISTER_IMPL context,
+ * just include the headers. The CCK_REGISTER_IMPL x-macro
  * arguments are: ENUM_NAME, type_suffix, "text_name"
  * This means that the function and type suffixes in your
  * implementation must match type_suffix.
  */
 
-#ifndef REGISTER_CLOCKDRIVER
-    #include "clockdriver_unix.h"
-    #include "clockdriver_linuxphc.h"
+/*
+ * selective builds check for CCK_BUILD_xxx, but CCK_ALL_IMPL causes
+ * all macros to be invoked. This is used when including this from
+ * the main component header, to preserve a full set of enums.
+ */
+
+#include <config.h>
+
+#ifndef CCK_REGISTER_IMPL
+    #include "clockdriver/clockdriver_unix.h"
+
+    #ifdef CCK_BUILD_CLOCKDRIVER_LINUXPHC
+	#include "clockdriver/clockdriver_linuxphc.h"
+    #endif
+
 #else
-    REGISTER_CLOCKDRIVER(CLOCKDRIVER_UNIX, unix, "unix")
-    REGISTER_CLOCKDRIVER(CLOCKDRIVER_LINUXPHC, linuxphc, "linuxphc")
-    #undef REGISTER_CLOCKDRIVER
-#endif /* REGISTER_CLOCKDRIVER */
+
+    CCK_REGISTER_IMPL(CLOCKDRIVER_UNIX, unix, "unix")
+
+    #if defined(CCK_BUILD_CLOCKDRIVER_LINUXPHC) || defined(CCK_ALL_IMPL)
+	CCK_REGISTER_IMPL(CLOCKDRIVER_LINUXPHC, linuxphc, "linuxphc")
+    #endif
+
+    #ifdef CCK_ALL_IMPL
+	#undef CCK_ALL_IMPL
+    #endif
+
+    #undef CCK_REGISTER_IMPL
+
+#endif /* CCK_REGISTER_IMPL */

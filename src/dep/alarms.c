@@ -143,7 +143,7 @@ alarmHandler_log(AlarmEntry *alarm)
 	getAlarmMessage(message, ALARM_MESSAGE_LENGTH, alarm);
 
 	if(alarm->state == ALARM_SET) {
-	    NOTICE("Alarm %s set%s\n", alarm->name, message);
+	    NOTICE("Alarm %s triggered%s\n", alarm->name, message);
 	}
 
 	if(alarm->state == ALARM_UNSET) {
@@ -222,10 +222,10 @@ configureAlarms(AlarmEntry *alarms, int count, void * userData)
     PtpClock *ptpClock = (PtpClock*) userData;
 
     for(int i = 0; i < count; i++) {
-	alarms[i].minAge = ptpClock->rtOpts->alarmMinAge;
-	alarms[i].enabled = ptpClock->rtOpts->alarmsEnabled;
+	alarms[i].minAge = ptpClock->global->alarmMinAge;
+	alarms[i].enabled = ptpClock->global->alarmsEnabled;
 #ifdef PTPD_SNMP
-	if(ptpClock->rtOpts->snmpEnabled && ptpClock->rtOpts->snmpTrapsEnabled) {
+	if(ptpClock->global->snmpEnabled && ptpClock->global->snmpTrapsEnabled) {
 	    DBG("SNMP alarm handler attached for %s\n", alarms[i].name);
 	    alarms[i].handlers[1] = alarmHandler_snmp;
 	} else {
@@ -265,13 +265,14 @@ setAlarmCondition(AlarmEntry *alarm, Boolean condition, PtpClock *ptpClock)
 	}
 
 	/* capture event data and time if condition is met */
-
-	capturePtpEventData(&alarm->eventData, ptpClock, ptpClock->rtOpts);
+	if(ptpClock != NULL) {
+	    capturePtpEventData(&alarm->eventData, ptpClock, ptpClock->global);
+	}
 
 	if(condition) {
-	    getSystemClock()->getTime(getSystemClock(), &alarm->timeSet);
+	    getSystemTime(&alarm->timeSet);
 	} else {
-	    getSystemClock()->getTime(getSystemClock(), &alarm->timeCleared);
+	    getSystemTime(&alarm->timeCleared);
 	}
 
 	DBG("Alarm %s condition set to %s\n", alarm->name, condition ? "TRUE" : "FALSE");
@@ -283,8 +284,12 @@ setAlarmCondition(AlarmEntry *alarm, Boolean condition, PtpClock *ptpClock)
 }
 
 void
-capturePtpEventData(PtpEventData *eventData, PtpClock *ptpClock, RunTimeOpts *rtOpts)
+capturePtpEventData(PtpEventData *eventData, PtpClock *ptpClock, GlobalConfig *global)
 {
+
+    if(ptpClock == NULL) {
+	return;
+    }
 
     eventData->defaultDS = ptpClock->defaultDS;
     eventData->currentDS = ptpClock->currentDS;
@@ -298,7 +303,7 @@ capturePtpEventData(PtpEventData *eventData, PtpClock *ptpClock, RunTimeOpts *rt
 	memset(&eventData->bestMaster, 0, sizeof(ForeignMasterRecord));
     }
 
-    eventData->ofmAlarmThreshold = rtOpts->ofmAlarmThreshold;
+    eventData->ofmAlarmThreshold = global->ofmAlarmThreshold;
 }
 
 /*

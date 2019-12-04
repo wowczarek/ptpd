@@ -64,40 +64,19 @@
 #endif
 
 #include <assert.h>
-#include <linux/ethtool.h>
 
-/*
- * Some Linux distributions come with kernels which support ETHTOOL_GET_TS_INFO,
- * but headers do not reflect this. If this fails in runtime,
- * the system is not fully usable for PTP anyway.
- */
-#if defined(HAVE_DECL_ETHTOOL_GET_TS_INFO) && !HAVE_DECL_ETHTOOL_GET_TS_INFO
+/* declare a string buffer of given length */
+#ifndef tmpstr
+#define tmpstr(name, len) char name[len + 1];\
+int name ## _len = len + 1;\
+memset(name, 0, name ## _len);
+#endif
 
-#define ETHTOOL_GET_TS_INFO	0x00000041 /* Get time stamping and PHC info */
-struct ethtool_ts_info {
-    __u32	cmd;
-    __u32	so_timestamping;
-    __s32	phc_index;
-    __u32	tx_types;
-    __u32	tx_reserved[3];
-    __u32	rx_filters;
-    __u32	rx_reserved[3];
-};
-
-#endif /* HAVE_DECL_ETHTOOL_GET_TS_INFO */
-
-/*
-  list of per-module defines:
-
-./dep/sys.c:#define PRINT_MAC_ADDRESSES
-./dep/timer.c:#define US_TIMER_INTERVAL 125000
-*/
-#define USE_BINDTODEVICE
-
-
-
-// enable this line to show debug numbers in nanoseconds instead of microseconds
-// #define DEBUG_IN_NS
+/* clear a string buffer (assuming _len suffix declared using tmpstr() */
+#ifndef clearstr
+#define clearstr(name)\
+memset(name, 0, name ## _len);
+#endif
 
 #define DBG_UNIT_US (1000)
 #define DBG_UNIT_NS (1)
@@ -177,61 +156,15 @@ struct ethtool_ts_info {
 #define flip16(x) htons(x)
 #define flip32(x) htonl(x)
 
-/* i don't know any target platforms that do not have htons and htonl,
-   but here are generic funtions just in case */
-/*
-#if defined(PTPD_MSBF)
-#define flip16(x) (x)
-#define flip32(x) (x)
-#elif defined(PTPD_LSBF)
-static inline Integer16 flip16(Integer16 x)
-{
-   return (((x) >> 8) & 0x00ff) | (((x) << 8) & 0xff00);
-}
-
-static inline Integer32 flip32(x)
-{
-  return (((x) >> 24) & 0x000000ff) | (((x) >> 8 ) & 0x0000ff00) |
-         (((x) << 8 ) & 0x00ff0000) | (((x) << 24) & 0xff000000);
-}
-#endif
-*/
-
-/** \}*/
-
-
 /** \name Bit array manipulations*/
  /**\{*/
+
+
 
 #define getFlag(x,y)  !!( *(UInteger8*)((x)+((y)<8?1:0)) &   (1<<((y)<8?(y):(y)-8)) )
 #define setFlag(x,y)    ( *(UInteger8*)((x)+((y)<8?1:0)) |=   1<<((y)<8?(y):(y)-8)  )
 #define clearFlag(x,y)  ( *(UInteger8*)((x)+((y)<8?1:0)) &= ~(1<<((y)<8?(y):(y)-8)) )
 /** \}*/
-
-#define DEFAULT_TOKEN_DELIM ", ;\t"
-
-/*
- * foreach loop across substrings from var, delimited by delim, placing
- * each token in targetvar on iteration, using id variable name prefix
- * to allow nesting (each loop uses an individual set of variables)
- */
-#define foreach_token_begin(id, var, targetvar, delim) \
-    int counter_##id = -1; \
-    char* stash_##id = NULL; \
-    char* text_##id; \
-    char* text__##id; \
-    char* targetvar; \
-    text_##id=strdup(var); \
-    for(text__##id = text_##id;; text__##id=NULL) { \
-	targetvar = strtok_r(text__##id, delim, &stash_##id); \
-	if(targetvar==NULL) break; \
-	counter_##id++;
-
-#define foreach_token_end(id) } \
-    if(text_##id != NULL) { \
-	free(text_##id); \
-    } \
-    counter_##id++;
 
 /** \name msg.c
  *-Pack and unpack PTP messages */
@@ -250,9 +183,9 @@ Boolean msgUnpackManagement(Octet * buf,MsgManagement*, MsgHeader*, PtpClock *pt
 Boolean msgUnpackSignaling(Octet * buf,MsgSignaling*, MsgHeader*, PtpClock *ptpClock, const int tlvOffset);
 void msgPackHeader(Octet * buf,PtpClock*);
 #ifndef PTPD_SLAVE_ONLY
-void msgPackAnnounce(Octet * buf, UInteger16, PtpClock*);
+void msgPackAnnounce(Octet * buf, UInteger16, Timestamp*, PtpClock*);
 #endif /* PTPD_SLAVE_ONLY */
-void msgPackSync(Octet * buf, UInteger16, Timestamp*,PtpClock*);
+void msgPackSync(Octet * buf, UInteger16, Timestamp*, PtpClock*);
 void msgPackFollowUp(Octet * buf,Timestamp*,PtpClock*, const UInteger16);
 void msgPackDelayReq(Octet * buf,Timestamp *,PtpClock *);
 void msgPackDelayResp(Octet * buf,MsgHeader *,Timestamp *,PtpClock *);
@@ -384,42 +317,20 @@ void freeTimestamp( Timestamp *t);
 UInteger16 msgPackManagementResponse(Octet * buf,MsgHeader*,MsgManagement*,PtpClock*);
 /** \}*/
 
-/** \name net.c (Unix API dependent)
- * -Init network stuff, send and receive datas*/
- /**\{*/
-
-Boolean testInterface(char* ifaceName, const RunTimeOpts* rtOpts);
-Boolean netInit(NetPath*,RunTimeOpts*,PtpClock*);
-Boolean netShutdown(NetPath*, PtpClock*);
-int netSelect(TimeInternal*,NetPath*,fd_set*);
-ssize_t netRecvEvent(Octet*,TimeInternal*,NetPath*,int);
-ssize_t netRecvGeneral(Octet*,NetPath*);
-ssize_t netSendEvent(Octet*,UInteger16,NetPath*,const RunTimeOpts*,Integer32,TimeInternal*);
-ssize_t netSendGeneral(Octet*,UInteger16,NetPath*,const RunTimeOpts*,Integer32 );
-ssize_t netSendPeerGeneral(Octet*,UInteger16,NetPath*,const RunTimeOpts*, Integer32);
-ssize_t netSendPeerEvent(Octet*,UInteger16,NetPath*,const RunTimeOpts*,Integer32,TimeInternal*);
-Boolean netRefreshIGMP(NetPath *, const RunTimeOpts *, PtpClock *);
-Boolean hostLookup(const char* hostname, Integer32* addr);
-void updateInterfaceInfo(NetPath * netPath, RunTimeOpts * rtOpts, PtpClock * ptpClock);
-Boolean netIoctlHelper(struct ifreq *ifr, const char* ifaceName, unsigned long request);
-Boolean getTsInfo(const char *ifaceName, struct ethtool_ts_info *info);
-int interfaceExists(char* ifaceName);
-Boolean prepareClockDrivers(NetPath *netPath, PtpClock *ptpClock, RunTimeOpts *rtOpts);
-
-/** \}*/
 
 #if defined PTPD_SNMP
 /** \name snmp.c (SNMP subsystem)
  * -Handle SNMP subsystem*/
  /**\{*/
 
-void snmpInit(RunTimeOpts *, PtpClock *);
+void snmpInit(const GlobalConfig *, PtpClock *);
 void snmpShutdown();
+void snmpPrePoll(void *cfds, int *nfd, fd_set *fds, struct timeval *timeout, int *block);
+void snmpOnData(void *cfds, int *nfd, fd_set *fds, struct timeval *timeout);
+void snmpOnTimeout(void *cfds, int *nfd, fd_set *fds, struct timeval *timeout);
+
 void eventHandler_snmp(AlarmEntry *alarm);
 void alarmHandler_snmp(AlarmEntry *alarm);
-
-//void sendNotif(int eventType, PtpEventData *eventData);
-
 
 /** \}*/
 #endif
@@ -428,14 +339,14 @@ void alarmHandler_snmp(AlarmEntry *alarm);
  * -Clock servo*/
  /**\{*/
 
-void initClock(const RunTimeOpts*,PtpClock*);
-void updatePeerDelay (one_way_delay_filter*, const RunTimeOpts*,PtpClock*,TimeInternal*,Boolean);
-void updateDelay (one_way_delay_filter*, const RunTimeOpts*, PtpClock*,TimeInternal*);
-void updateOffset(TimeInternal*,TimeInternal*,
-  offset_from_master_filter*,const RunTimeOpts*,PtpClock*,TimeInternal*);
-void checkOffset(const RunTimeOpts*, PtpClock*);
-void updateClock(const RunTimeOpts*,PtpClock*);
-void stepClock(const RunTimeOpts * rtOpts, PtpClock * ptpClock, Boolean force);
+void recalibrateClock(PtpClock *ptpClock, bool resetFilters);
+void initClock(const GlobalConfig*,PtpClock*);
+void updatePeerDelay (IIRfilter*, const GlobalConfig*,PtpClock*,TimeInternal*,Boolean);
+void updateDelay (IIRfilter*, const GlobalConfig*, PtpClock*,TimeInternal*);
+void updateOffset(TimeInternal*,TimeInternal*, offset_from_master_filter*,const GlobalConfig*,PtpClock*,TimeInternal*);
+void checkOffset(const GlobalConfig*, PtpClock*);
+void updateClock(const GlobalConfig*,PtpClock*);
+void stepClock(const GlobalConfig * global, PtpClock * ptpClock, Boolean force);
 
 /** \}*/
 
@@ -443,17 +354,15 @@ void stepClock(const RunTimeOpts * rtOpts, PtpClock * ptpClock, Boolean force);
  * -Handle with runtime options*/
  /**\{*/
 int setCpuAffinity(int cpu);
-PtpClock * ptpdStartup(int,char**,Integer16*,RunTimeOpts*);
+bool ptpdStartup(int argc ,char** argv, GlobalConfig* global, int *ret);
 
 void ptpdShutdown(PtpClock * ptpClock);
-void checkSignals(RunTimeOpts * rtOpts, PtpClock * ptpClock);
-void restartSubsystems(RunTimeOpts *rtOpts, PtpClock *ptpClock);
-void applyConfig(dictionary *baseConfig, RunTimeOpts *rtOpts, PtpClock *ptpClock);
+void checkSignals(GlobalConfig * global, PtpClock * ptpClock);
+void restartSubsystems(GlobalConfig *global, PtpClock *ptpClock);
+void applyConfig(dictionary *baseConfig, GlobalConfig *global, PtpClock *ptpClock);
 
 void enable_runtime_debug(void );
 void disable_runtime_debug(void );
-
-void ntpSetup(RunTimeOpts *rtOpts, PtpClock *ptpClock);
 
 #define D_ON      do { enable_runtime_debug();  } while (0);
 #define D_OFF     do { disable_runtime_debug( ); } while (0);
@@ -465,59 +374,33 @@ void ntpSetup(RunTimeOpts *rtOpts, PtpClock *ptpClock);
  * -Manage timing system API*/
  /**\{*/
 
-/* new debug methods to debug time variables */
-char *time2st(const TimeInternal * p);
-void DBG_time(const char *name, const TimeInternal  p);
-
-
+void logMessageWrapper(int priority, const char * format, va_list ap);
 void logMessage(int priority, const char *format, ...);
 void updateLogSize(LogFileHandler* handler);
 Boolean maintainLogSize(LogFileHandler* handler);
 int restartLog(LogFileHandler* handler, Boolean quiet);
-void restartLogging(RunTimeOpts* rtOpts);
-void stopLogging(RunTimeOpts* rtOpts);
+void restartLogging(GlobalConfig* global);
+void stopLogging(GlobalConfig* global);
 void logStatistics(PtpClock *ptpClock);
-void periodicUpdate(const RunTimeOpts *rtOpts, PtpClock *ptpClock);
+void periodicUpdate(const GlobalConfig *global, PtpClock *ptpClock);
 void displayStatus(PtpClock *ptpClock, const char *prefixMessage);
 void displayPortIdentity(PortIdentity *port, const char *prefixMessage);
 int snprint_PortIdentity(char *s, int max_len, const PortIdentity *id);
-Boolean nanoSleep(TimeInternal*);
 
 double getRand(void);
 int lockFile(int fd);
 int checkLockStatus(int fd, short lockType, int *lockPid);
 int checkFileLockable(const char *fileName, int *lockPid);
-Boolean checkOtherLocks(RunTimeOpts *rtOpts);
-Boolean doubleToFile(const char *filename, double input);
-Boolean doubleFromFile(const char *filename, double *output);
-Boolean token_in_list(const char *list, const char * search, const char * delim);
+Boolean checkOtherLocks(GlobalConfig *global);
 
 void recordSync(UInteger16 sequenceId, TimeInternal * time);
 
-#ifdef HAVE_SYS_TIMEX_H
-void informClockSource(PtpClock* ptpClock);
-
-/* Helper function to manage ntpadjtime / adjtimex flags */
-void setTimexFlags(int flags, Boolean quiet);
-void unsetTimexFlags(int flags, Boolean quiet);
-int getTimexFlags(void);
-Boolean checkTimexFlags(int flags);
-
-#if defined(MOD_TAI) &&  NTP_API == 4
-void setKernelUtcOffset(int utc_offset);
-Boolean getKernelUtcOffset(int *utc_offset);
-#endif /* MOD_TAI */
-
-#endif /* HAVE_SYS_TIMEX_H */
-
-int parseLeapFile(char * path, LeapSecondInfo *info);
-
 void
-resetWarnings(const RunTimeOpts * rtOpts, PtpClock * ptpClock);
+resetWarnings(const GlobalConfig * global, PtpClock * ptpClock);
 
-void updatePtpEngineStats (PtpClock* ptpClock, const RunTimeOpts* rtOpts);
+void updatePtpEngineStats (PtpClock* ptpClock, const GlobalConfig* global);
 
-void writeStatusFile(PtpClock *ptpClock, const RunTimeOpts *rtOpts, Boolean quiet);
+void writeStatusFile(PtpClock *ptpClock, const GlobalConfig *global, Boolean quiet);
 
 
 #endif /*PTPD_DEP_H_*/

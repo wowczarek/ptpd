@@ -54,8 +54,6 @@
 
 #include "../ptpd.h"
 
-extern RunTimeOpts rtOpts;
-
 #define PACK_SIMPLE( type ) \
 void pack##type( void* from, void* to ) \
 { \
@@ -1728,7 +1726,7 @@ msgPackSync(Octet * buf, UInteger16 sequenceId, Timestamp * originTimestamp, Ptp
 	*(UInteger8 *) (buf + 32) = 0x00;
 
 	 /* Table 24 - unless it's multicast, logMessageInterval remains    0x7F */
-	 if(rtOpts.transport == IEEE_802_3 || rtOpts.ipMode != IPMODE_UNICAST )
+	 if(getGlobalConfig()->transportMode != TMODE_UC )
 		*(Integer8 *) (buf + 33) = ptpClock->portDS.logSyncInterval;
 	memset((buf + 8), 0, 8);
 
@@ -1759,7 +1757,7 @@ msgUnpackSync(Octet * buf, MsgSync * sync)
 #ifndef PTPD_SLAVE_ONLY
 /*Pack Announce message into OUT buffer of ptpClock*/
 void
-msgPackAnnounce(Octet * buf, UInteger16 sequenceId, PtpClock * ptpClock)
+msgPackAnnounce(Octet * buf, UInteger16 sequenceId, Timestamp * originTimestamp, PtpClock * ptpClock)
 {
 	UInteger16 stepsRemoved;
 	
@@ -1777,7 +1775,10 @@ msgPackAnnounce(Octet * buf, UInteger16 sequenceId, PtpClock * ptpClock)
 	*(Integer8 *) (buf + 33) = ptpClock->portDS.logAnnounceInterval;
 
 	/* Announce message */
-	memset((buf + 34), 0, 10);
+	*(UInteger16 *) (buf + 34) = flip16(originTimestamp->secondsField.msb);
+	*(UInteger32 *) (buf + 36) = flip32(originTimestamp->secondsField.lsb);
+	*(UInteger32 *) (buf + 40) = flip32(originTimestamp->nanosecondsField);
+
 	*(Integer16 *) (buf + 44) = flip16(ptpClock->timePropertiesDS.currentUtcOffset);
 	*(UInteger8 *) (buf + 47) = ptpClock->parentDS.grandmasterPriority1;
 	*(UInteger8 *) (buf + 48) = ptpClock->defaultDS.clockQuality.clockClass;
@@ -1852,7 +1853,7 @@ msgPackFollowUp(Octet * buf, Timestamp * preciseOriginTimestamp, PtpClock * ptpC
 	*(UInteger8 *) (buf + 32) = 0x02;
 
 	 /* Table 24 - unless it's multicast, logMessageInterval remains    0x7F */
-	 if(rtOpts.transport == IEEE_802_3 || rtOpts.ipMode != IPMODE_UNICAST)
+	 if(getGlobalConfig()->transportMode != TMODE_UC)
 		*(Integer8 *) (buf + 33) = ptpClock->portDS.logSyncInterval;
 
 	/* Follow_up message */

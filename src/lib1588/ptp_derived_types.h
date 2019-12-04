@@ -117,8 +117,10 @@ PtpText createPtpTextLen(const char *text, size_t len);
 /* create PtpText from string and determine length */
 PtpText createPtpText(const char *text);
 
+//todo: createPtpPortaddress, createPtpPhysicalAddress
+extern PtpPortAddress createPtpPortAddress(const void *addr);
+extern PtpPhysicalAddress createPtpPhysicalAddress(const void *addr);
+
 void displayPtpTimeInternal(PtpTimeInternal data, const char *name);
-
-
 
 #endif /* PTP_DERIVED_TYPES_H_ */

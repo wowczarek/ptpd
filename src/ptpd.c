@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2012-2013 Wojciech Owczarek,
+ * Copyright (c) 2012-2017 Wojciech Owczarek,
  * Copyright (c) 2011-2012 George V. Neville-Neil,
  *                         Steven Kreuzer,
  *                         Martin Burnicki,
@@ -58,82 +58,201 @@
 
 #include "ptpd.h"
 
-RunTimeOpts rtOpts;			/* statically allocated run-time
+#include <stdbool.h>
+
+#include <libcck/fd_set.h>
+#include <libcck/net_utils.h>
+#include <libcck/transport_address.h>
+#include <libcck/cck_utils.h>
+#include <libcck/libcck.h>
+#include <libcck/timer.h>
+
+static GlobalConfig global;			/* statically allocated run-time
 					 * configuration data */
 
-Boolean startupInProgress;
-
-/*
- * Global variable with the main PTP port. This is used to show the current state in DBG()/message()
- * without having to pass the pointer everytime.
- *
- * if ptpd is extended to handle multiple ports (eg, to instantiate a Boundary Clock),
- * then DBG()/message() needs a per-port pointer argument
- */
-PtpClock *G_ptpClock = NULL;
-
-TimingDomain timingDomain;
+bool startupInProgress;
 
 int
 main(int argc, char **argv)
 {
-	PtpClock *ptpClock;
-	Integer16 ret;
-	TimingService *ts;
 
-	startupInProgress = TRUE;
+	PtpClock ptpClock;
+	PtpClockUserData userData;
 
-	memset(&timingDomain, 0, sizeof(timingDomain));
-	timingDomainSetup(&timingDomain);
+	int ret;
 
-	timingDomain.electionLeft = 10;
+	memset(&userData, 0, sizeof(userData));
+	memset(&ptpClock, 0, sizeof(ptpClock));
 
-	/* Initialize run time options with command line arguments */
-	if (!(ptpClock = ptpdStartup(argc, argv, &ret, &rtOpts))) {
-		if (ret != 0 && !rtOpts.checkConfigOnly)
-			ERROR(USER_DESCRIPTION" startup failed\n");
-		return ret;
+	userData.fdSet = getCckFdSet();
+
+	ptpClock.userData = &userData;
+
+	startupInProgress = true;
+
+	/* Parse and check config, go into background */
+	/* ret == 0: success. ret > 0: failure. ret < 0: no options given. */
+	if(!ptpdStartup(argc, argv, &global, &ret)) {
+	    if((ret > 0) && !global.checkConfigOnly) {
+		    ERROR(USER_DESCRIPTION" startup failed\n");
+	    }
+	    /* no options given - return 1, but it's not a config failure */
+	    if(ret < 0) {
+		return 1;
+	    }
+	    return ret;
 	}
 
-	timingDomain.electionDelay = rtOpts.electionDelay;
+	cckInit(getCckFdSet());
+	configureLibCck(&global);
 
-	/* configure PTP TimeService */
-
-	timingDomain.services[0] = &ptpClock->timingService;
-	ts = timingDomain.services[0];
-	strncpy(ts->id, "PTP0", TIMINGSERVICE_MAX_DESC);
-	ts->dataSet.priority1 = rtOpts.preferNTP;
-	ts->dataSet.type = TIMINGSERVICE_PTP;
-	ts->config = &rtOpts;
-	ts->controller = ptpClock;
-	ts->timeout = rtOpts.idleTimeout;
-	ts->updateInterval = 1;
-	ts->holdTime = rtOpts.ntpOptions.failoverTimeout;
-	timingDomain.serviceCount = 1;
-
-	if (rtOpts.ntpOptions.enableEngine) {
-		ntpSetup(&rtOpts, ptpClock);
-	} else {
-	    timingDomain.serviceCount = 1;
-	    timingDomain.services[1] = NULL;
+	if(!initPtpPort(&ptpClock, &global)) {
+	    return 1;
 	}
 
-	timingDomain.init(&timingDomain);
-	timingDomain.updateInterval = 1;
+	ptpPortPostInit(&ptpClock);
 
-	startupInProgress = FALSE;
+	NOTICE(USER_DESCRIPTION" started successfully on %s using \"%s\" preset (PID %d)\n",
+			    global.ifName,
+			    (getPtpPreset(global.selectedPreset, &global)).presetName,
+			    getpid());
 
-	/* global variable for message(), please see comment on top of this file */
-	G_ptpClock = ptpClock;
+	startupInProgress = false;
 
-	/* do the protocol engine */
-	protocol(&rtOpts, ptpClock);
-	/* forever loop.. */
+	tmrStart(&ptpClock, ALARM_UPDATE, ALARM_UPDATE_INTERVAL);
+	/* run the status file update every 1 .. 1.2 seconds */
+	tmrStart(&ptpClock, STATUSFILE_UPDATE, global.statusFileUpdateInterval * (1.0 + 0.2 * getRand()));
+	tmrStart(&ptpClock, PERIODIC_INFO, global.statsUpdateInterval);
 
-	/* this also calls ptpd shutdown */
-	timingDomain.shutdown(&timingDomain);
+	if (!initPtpTransports(&ptpClock, getCckFdSet(), &global)) {
+	    CRITICAL("Failed to start network transports!\n");
+	    return 1;
+	}
+
+	toState(PTP_INITIALIZING, &global, &ptpClock);
+	if(global.statusLog.logEnabled)
+		writeStatusFile(&ptpClock, &global, TRUE);
+
+	/* look, we have an event loop now... */
+	while(true) {
+	    cckPollData(getCckFdSet(), NULL);
+	    cckDispatchTimers();
+	    ptpRun(&global, &ptpClock);
+	    checkSignals(&global, &ptpClock);
+	    /* Configuration has changed */
+	    if(global.restartSubsystems > 0) {
+		restartSubsystems(&global, &ptpClock);
+	    }
+	}
+
+	shutdownPtpPort(&ptpClock, &global);
+
+        ptpdShutdown(&ptpClock);
 
 	NOTIFY("Self shutdown\n");
 
 	return 1;
+}
+
+
+bool initPtpPort(PtpClock *port, GlobalConfig *global)
+{
+
+	port->global = global;
+	port->foreign = calloc(global->fmrCapacity, sizeof(ForeignMasterRecord));
+
+	if (port->foreign == NULL) {
+			PERROR("failed to allocate memory for foreign "
+			       "master data");
+			return false;
+	}
+
+	if(global->statisticsLog.logEnabled) {
+		port->resetStatisticsLog = true;
+	}
+
+	if(!setupPtpTimers(port, getCckFdSet())) {
+	    CRITICAL("Failed to initialise event timers. PTPd is inoperable.\n");
+	    return false;
+	}
+
+	/* init alarms */
+	initAlarms(port->alarms, ALRM_MAX, port);
+	configureAlarms(port->alarms, ALRM_MAX, port);
+	port->alarmDelay = global->alarmInitialDelay;
+
+	/* we're delaying alarm processing - disable alarms for now */
+	if(port->alarmDelay) {
+	    enableAlarms(port->alarms, ALRM_MAX, FALSE);
+	}
+
+#if defined PTPD_SNMP
+	/* Start SNMP subsystem */
+	if (global->snmpEnabled)
+		snmpInit(global, port);
+#endif
+
+	port->resetStatisticsLog = true;
+
+	outlierFilterSetup(&port->oFilterMS);
+	outlierFilterSetup(&port->oFilterSM);
+
+	port->oFilterMS.init(&port->oFilterMS,&global->oFilterMSConfig, "delayMS");
+	port->oFilterSM.init(&port->oFilterSM,&global->oFilterSMConfig, "delaySM");
+
+	if(global->filterMSOpts.enabled) {
+		port->filterMS = createDoubleMovingStatFilter(&global->filterMSOpts,"delayMS");
+	}
+
+	if(global->filterSMOpts.enabled) {
+		port->filterSM = createDoubleMovingStatFilter(&global->filterSMOpts, "delaySM");
+	}
+
+	return true;
+
+}
+
+void shutdownPtpPort(PtpClock *port, GlobalConfig *global)
+{
+
+	/*
+         * go into DISABLED state so the FSM can call any PTP-specific shutdown actions,
+	 * such as canceling unicast transmission
+         */
+	toState(PTP_DISABLED, global, port);
+	/* process any outstanding events before exit */
+	updateAlarms(port->alarms, ALRM_MAX);
+
+	shutdownPtpTransports(port);
+	shutdownPtpTimers(port);
+
+	ptpPortPreShutdown(port);
+
+	free(port->foreign);
+
+	/* free management and signaling messages, they can have dynamic memory allocated */
+	if(port->msgTmpHeader.messageType == MANAGEMENT)
+		freeManagementTLV(&port->msgTmp.manage);
+	freeManagementTLV(&port->outgoingManageTmp);
+	if(port->msgTmpHeader.messageType == SIGNALING)
+		freeSignalingTLV(&port->msgTmp.signaling);
+	freeSignalingTLV(&port->outgoingSignalingTmp);
+
+#ifdef PTPD_SNMP
+	snmpShutdown();
+#endif /* PTPD_SNMP */
+
+	port->oFilterMS.shutdown(&port->oFilterMS);
+	port->oFilterSM.shutdown(&port->oFilterSM);
+        freeDoubleMovingStatFilter(&port->filterMS);
+        freeDoubleMovingStatFilter(&port->filterSM);
+
+}
+
+
+/* temporary */
+GlobalConfig*
+getGlobalConfig()
+{
+    return &global;
 }

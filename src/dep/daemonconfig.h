@@ -69,13 +69,13 @@ enum {
 #define    CFGOP_HELP_SINGLE	1<<4	/* print help for one entry */
 #define    CFGOP_RESTART_FLAGS	1<<5	/* return subsystems affected by config changes */
 
-Boolean loadConfigFile (dictionary**, RunTimeOpts*);
+Boolean loadConfigFile (dictionary**, GlobalConfig*);
 void loadCommandLineKeys(dictionary*, int, char**);
-Boolean loadCommandLineOptions(RunTimeOpts*, dictionary*, int, char** , Integer16*);
-dictionary* parseConfig (int, void*, dictionary*, RunTimeOpts*);
-int reloadConfig ( RunTimeOpts*, PtpClock* );
+Boolean loadCommandLineOptions(GlobalConfig*, dictionary*, int, char** , int*);
+dictionary* parseConfig (int, void*, dictionary*, GlobalConfig*);
+int reloadConfig ( GlobalConfig*, PtpClock* );
 Boolean compareConfig(dictionary* source, dictionary* target);
-int checkSubsystemRestart(dictionary* newConfig, dictionary* oldConfig, RunTimeOpts *rtOpts);
+int checkSubsystemRestart(dictionary* newConfig, dictionary* oldConfig, GlobalConfig *global);
 void printConfigHelp();
 void printDefaultConfig();
 void printShortHelp();

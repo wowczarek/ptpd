@@ -1,0 +1,159 @@
+/* Copyright (c) 2016-2017 Wojciech Owczarek,
+ *
+ * All Rights Reserved
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/**
+ * @file   ttransport.def
+ * @date   Sat Jan 9 16:14:10 2016
+ *
+ * @brief  Component implementation list / x-macro for the TTransport type
+ *
+ */
+
+
+/*
+ * Register available timestamping transport types here (we are so modular...)
+ * If not included in the CCK_REGISTER_IMPL context,
+ * this just includes the headers. The CCK_REGISTER_IMPL x-macro
+ * arguments are: ENUM_NAME, type_suffix, "text_name", family, capabilities, extends
+ *	type_sufix:	suffix used in function names for this transport
+ *  	family:		one of TT_FAMILY_... address families as per ttransport.h
+ *  	capabilities:	one of TT_CAPS_... transport capabilities as per ttransport.h
+ *  	extends:	transport type this transport inherits from
+ *			(fictional for now)
+ * Function and type suffixes in your implementation must match type_suffix.
+ */
+
+#ifndef CCK_REGISTER_IMPL
+
+    #include "ttransport/udp_common.h" /* currently used by all UDP transports */
+    #include "ttransport/ethernet_common.h" /* currently used by all Ethernet transports */
+
+    #ifdef CCK_BUILD_TTRANSPORT_LINUXTS
+	#include "ttransport/linuxts_common.h"
+	#include "ttransport/linuxts_udpv4.h"
+	#include "ttransport/linuxts_udpv6.h"
+	#include "ttransport/linuxts_raweth.h"
+    #endif
+
+    #ifdef CCK_BUILD_TTRANSPORT_PCAP
+	#include "ttransport/pcap_common.h"
+	#include "ttransport/pcap_ethernet.h"
+	#include "ttransport/pcap_udpv4.h"
+	#include "ttransport/pcap_udpv6.h"
+    #endif
+
+    #ifdef CCK_BUILD_TTRANSPORT_DLPI
+	#include "ttransport/dlpi_common.h"
+//	#include "ttransport/dlpi_ethernet.h"
+	#include "ttransport/dlpi_udpv4.h"
+	#include "ttransport/dlpi_udpv6.h"
+    #endif
+
+
+    #include "ttransport/socket_common.h" /* currently used by all UDP transports */
+    #include "ttransport/socket_udpv4.h"
+    #include "ttransport/socket_udpv6.h"
+
+    #ifdef CCK_BUILD_TTRANSPORT_SOCK_RAWETH
+	#include "ttransport/socket_raweth.h"
+    #endif
+
+
+#else
+
+    /*
+     * Register implemented / available transport types. Order from "best" to "worst",
+     * because when we probe for a suitable transport, we move from first to last.
+     */
+
+    /* 			enum name,		type suffix,	text name,		address family,
+			capabilities,	base type	*/
+
+
+    /* Linux software / hardware timestamps (SO_TIMESTAMPING) */
+    #if defined(CCK_BUILD_TTRANSPORT_LINUXTS) || defined(CCK_ALL_IMPL)
+
+	CCK_REGISTER_IMPL(TT_TYPE_LINUXTS_UDPV4,	linuxts_udpv4,	"linuxts_udpv4",	TT_FAMILY_IPV4,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_HW_TIMESTAMP_PTP |
+			    TT_CAPS_HW_TIMESTAMP_ANY | TT_CAPS_HW_PTP_ONE_STEP | TT_CAPS_PREFER_SW), TT_TYPE_SOCKET_UDPV4)
+
+	CCK_REGISTER_IMPL(TT_TYPE_LINUXTS_UDPV6,	linuxts_udpv6,	"linuxts_udpv6",	TT_FAMILY_IPV6,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_HW_TIMESTAMP_PTP |
+			    TT_CAPS_HW_TIMESTAMP_ANY | TT_CAPS_HW_PTP_ONE_STEP | TT_CAPS_PREFER_SW), TT_TYPE_SOCKET_UDPV6)
+
+	CCK_REGISTER_IMPL(TT_TYPE_LINUXTS_RAWETH,	linuxts_raweth,	"linuxts_raweth",	TT_FAMILY_ETHERNET,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_HW_TIMESTAMP_PTP |
+			    TT_CAPS_HW_TIMESTAMP_ANY | TT_CAPS_HW_PTP_ONE_STEP | TT_CAPS_PREFER_SW), TT_TYPE_SOCKET_RAWETH)
+
+    #endif
+
+    /* libpcap-based transports - better TX timestamp approximation than pure s/w timestamps */
+    #if defined(CCK_BUILD_TTRANSPORT_PCAP) || defined(CCK_ALL_IMPL)
+
+	CCK_REGISTER_IMPL(TT_TYPE_PCAP_UDPV4,	pcap_udpv4,	"pcap_udpv4",	TT_FAMILY_IPV4,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_PREFER_SW),	TT_TYPE_SOCKET_UDPV4)
+
+	CCK_REGISTER_IMPL(TT_TYPE_PCAP_UDPV6,	pcap_udpv6,	"pcap_udpv6",	TT_FAMILY_IPV6,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_PREFER_SW),	TT_TYPE_SOCKET_UDPV6)
+
+	CCK_REGISTER_IMPL(TT_TYPE_PCAP_ETHERNET,	pcap_ethernet,	"pcap_ethernet",TT_FAMILY_ETHERNET,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_PREFER_SW),	TT_TYPE_NONE)
+    #endif
+
+    /* libdlpi-based transports - better TX timestamp approximation than pure s/w timestamps, the only "socket timestamp" option for Solaris 10 */
+    #if defined(CCK_BUILD_TTRANSPORT_DLPI) || defined(CCK_ALL_IMPL)
+
+	CCK_REGISTER_IMPL(TT_TYPE_DLPI_UDPV4,	dlpi_udpv4,	"dlpi_udpv4",	TT_FAMILY_IPV4,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_PREFER_SW),	TT_TYPE_SOCKET_UDPV4)
+
+	CCK_REGISTER_IMPL(TT_TYPE_DLPI_UDPV6,	dlpi_udpv6,	"dlpi_udpv6",	TT_FAMILY_IPV6,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_PREFER_SW),	TT_TYPE_SOCKET_UDPV6)
+
+//CK_REGISTER_IMPL(TT_TYPE_DLPI_ETHERNET,	dlpi_ethernet,	"dlpi_ethernet",TT_FAMILY_ETHERNET,
+//	(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_PREFER_SW),	TT_TYPE_NONE)
+    #endif
+
+
+    /* standard Unix sockets with software timestamp support - no TX timestamps for unicast: manual loop only */
+
+    CCK_REGISTER_IMPL(TT_TYPE_SOCKET_UDPV4,	socket_udpv4,	"socket_udpv4",	TT_FAMILY_IPV4,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_PREFER_SW),	TT_TYPE_NONE)
+
+    CCK_REGISTER_IMPL(TT_TYPE_SOCKET_UDPV6,	socket_udpv6,	"socket_udpv6",	TT_FAMILY_IPV6,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP | TT_CAPS_PREFER_SW),	TT_TYPE_NONE)
+
+    #if defined(CCK_BUILD_TTRANSPORT_SOCK_RAWETH) || defined(CCK_ALL_IMPL)
+	CCK_REGISTER_IMPL(TT_TYPE_SOCKET_RAWETH,	socket_raweth,	"socket_raweth", TT_FAMILY_ETHERNET,
+			(TT_CAPS_UCAST | TT_CAPS_MCAST | TT_CAPS_SW_TIMESTAMP  | TT_CAPS_PREFER_SW | TT_CAPS_BROKEN),	TT_TYPE_NONE)
+    #endif
+
+    #ifdef CCK_ALL_IMPL
+	#undef CCK_ALL_IMPL
+    #endif
+
+    #undef CCK_REGISTER_IMPL
+
+#endif /* CCK_REGISTER_IMPL */

@@ -1,7 +1,7 @@
 #ifndef OUTLIERFILTER_H_
 #define OUTLIERFILTER_H_
 
-#include <dep/statistics.h>
+#include <libcck/statistics.h>
 
 #define OUTLIERFILTER_MAX_DESC 20
 
@@ -103,6 +103,7 @@ struct OutlierFilter {
     int delay;
     int totalDelay;
     int delayCredit;
+    int stepSamples;
     Boolean blocking;
 
     /* 'methods' */
