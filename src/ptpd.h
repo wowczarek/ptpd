@@ -141,11 +141,13 @@
 	} \
 	memset(ptr, 0, size);
 
+#ifndef SAFE_FREE
 #define SAFE_FREE(pointer) \
 	if(pointer != NULL) { \
 		free(pointer); \
 		pointer = NULL; \
 	}
+#endif /* SAFE_FREE */
 
 #define IS_SET(data, bitpos) \
 	((data & ( 0x1 << bitpos )) == (0x1 << bitpos))

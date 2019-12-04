@@ -914,8 +914,17 @@ freeTransportData(PtpClock *ptpClock)
     TTransport *event = ptpClock->eventTransport;
     TTransport *general = ptpClock->generalTransport;
 
-    freeTTransport(&event);
-    freeTTransport(&general);
+    /*
+     * free general transport only if the same transport is not used
+     * for both event and general (as is the case for Ethernet)
+     */
+    if((general != event) && general != NULL) {
+	freeTTransport(&general);
+    }
+
+    if(event != NULL) {
+	freeTTransport(&event);
+    }
 
     ptpClock->eventTransport = NULL;
     ptpClock->generalTransport = NULL;

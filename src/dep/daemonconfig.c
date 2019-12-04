@@ -2712,8 +2712,8 @@ parseConfig ( int opCode, void *opArg, dictionary* dict, GlobalConfig *global )
 	 */
 	if(global->autoLockFile) {
 
-	    memset(global->lockFile, 0, PATH_MAX);
-	    snprintf(global->lockFile, PATH_MAX,
+	    memset(global->lockFile, 0, PATH_MAX * 2 + 1);
+	    snprintf(global->lockFile, PATH_MAX * 2,
 		    "%s/"PTPD_PROGNAME"_%s_%s.lock",
 		    global->lockDirectory,
 		    (global->clockQuality.clockClass<128 && !global->slaveOnly) ? "master" : DEFAULT_CLOCKDRIVER,
@@ -2725,7 +2725,7 @@ parseConfig ( int opCode, void *opArg, dictionary* dict, GlobalConfig *global )
 	 */
 	} else {
 		if(!CONFIG_ISSET("global:lock_file"))
-			snprintf(global->lockFile, PATH_MAX,
+			snprintf(global->lockFile, PATH_MAX * 2,
 				"%s/%s", global->lockDirectory, DEFAULT_LOCKFILE_NAME);
 	}
 

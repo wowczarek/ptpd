@@ -480,11 +480,11 @@ maintainLogSize(LogFileHandler* handler)
 			int logFileNumber = 0;
 			time_t maxMtime = 0;
 			struct stat st;
-			char fname[PATH_MAX];
+			char fname[PATH_MAX + 21];
 			/* Find the last modified file of the series */
 			while(++i <= handler->maxFiles) {
-				memset(fname, 0, PATH_MAX);
-				snprintf(fname, PATH_MAX,"%s.%d", handler->logPath, i);
+				memset(fname, 0, PATH_MAX + 21);
+				snprintf(fname, PATH_MAX + 20,"%s.%d", handler->logPath, i);
 				if((stat(fname,&st) != -1) && S_ISREG(st.st_mode)) {
 					if(st.st_mtime > maxMtime) {
 						maxMtime = st.st_mtime;
@@ -495,8 +495,8 @@ maintainLogSize(LogFileHandler* handler)
 			/* Use next file in line or first one if rolled over */
 			if(++logFileNumber > handler->maxFiles)
 				logFileNumber = 1;
-			memset(fname, 0, PATH_MAX);
-			snprintf(fname, PATH_MAX,"%s.%d", handler->logPath, logFileNumber);
+			memset(fname, 0, PATH_MAX + 21);
+			snprintf(fname, PATH_MAX + 20,"%s.%d", handler->logPath, logFileNumber);
 			/* Move current file to new location */
 			rename(handler->logPath, fname);
 			/* Reopen to reactivate the original path */
@@ -632,7 +632,7 @@ logStatistics(PtpClock * ptpClock)
 	/* output unix timestamp s.ns if configured */
 	if (global->statisticsTimestamp == TIMESTAMP_UNIX ||
 	    global->statisticsTimestamp == TIMESTAMP_BOTH) {
-	    len += snprintf(sbuf + len, sizeof(sbuf) - len, "%d.%06d, %s,",
+	    len += snprintf(sbuf + len, sizeof(sbuf) - len, "%ld.%06ld, %s,",
 		       now.seconds, now.nanoseconds, /* Timestamp */
 		       translatePortState(ptpClock)); /* State */
 	}
@@ -1312,7 +1312,7 @@ checkOtherLocks(GlobalConfig* global)
 {
 
 
-char searchPattern[PATH_MAX];
+char searchPattern[PATH_MAX * 2 + 1];
 char * lockPath = 0;
 int lockPid = 0;
 glob_t matchedFiles;
@@ -1331,7 +1331,8 @@ int matches = 0, counter = 0;
      */
 
 	/* Check for other ptpd running on the same interface - same for all modes */
-	snprintf(searchPattern, PATH_MAX,"%s/%s_*_%s.lock",
+	memset(searchPattern, 0, PATH_MAX * 2 + 1);
+	snprintf(searchPattern, PATH_MAX * 2,"%s/%s_*_%s.lock",
 	    global->lockDirectory, PTPD_PROGNAME,global->ifName);
 
 	DBGV("SearchPattern: %s\n",searchPattern);
@@ -1377,7 +1378,7 @@ int matches = 0, counter = 0;
 		globfree(&matchedFiles);
 	/* Any mode that can control the clock - also check the clock driver */
 	if(global->clockQuality.clockClass > 127 ) {
-	    snprintf(searchPattern, PATH_MAX,"%s/%s_%s_*.lock",
+	    snprintf(searchPattern, PATH_MAX * 2,"%s/%s_%s_*.lock",
 	    global->lockDirectory,PTPD_PROGNAME,DEFAULT_CLOCKDRIVER);
 	DBGV("SearchPattern: %s\n",searchPattern);
 

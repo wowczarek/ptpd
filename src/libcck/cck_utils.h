@@ -62,6 +62,11 @@
 #define max(a,b) ((a > b) ? (a) : (b))
 #endif
 
+/* "safely" free a pointer */
+#ifndef SAFE_FREE
+#define SAFE_FREE(pointer) if((pointer) != NULL) free(pointer);
+#endif
+
 /* clamp a value to boundary */
 #define clamp(val,bound) ( (val > bound) ? bound : (val < -bound) ? -bound : val )
 

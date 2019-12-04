@@ -849,8 +849,8 @@ static void
 restoreFrequency (ClockDriver *driver) {
 
     double frequency = 0.0;
-    char frequencyPath [PATH_MAX + 1];
-    memset(frequencyPath, 0, PATH_MAX + 1);
+    char frequencyPath [PATH_MAX * 2 + 3];
+    memset(frequencyPath, 0, PATH_MAX * 2 + 3);
 
     if(driver->config.disabled) {
 	return;
@@ -858,7 +858,7 @@ restoreFrequency (ClockDriver *driver) {
 
     /* try to retrieve from file */
     if(driver->config.storeToFile) {
-	snprintf(frequencyPath, PATH_MAX, "%s/%s", driver->config.frequencyDir, driver->config.frequencyFile);
+	snprintf(frequencyPath, PATH_MAX * 2 + 2, "%s/%s", driver->config.frequencyDir, driver->config.frequencyFile);
 	if(!doubleFromFile(frequencyPath, &frequency)) {
 	    frequency = driver->storedFrequency;
 	}
@@ -884,15 +884,15 @@ restoreFrequency (ClockDriver *driver) {
 static void
 storeFrequency (ClockDriver *driver) {
 
-    char frequencyPath [PATH_MAX + 1];
-    memset(frequencyPath, 0, PATH_MAX + 1);
+    char frequencyPath [PATH_MAX * 2 + 3];
+    memset(frequencyPath, 0, PATH_MAX * 2 + 3);
 
     if(driver->config.disabled) {
 	return;
     }
 
     if(driver->config.storeToFile) {
-	snprintf(frequencyPath, PATH_MAX, "%s/%s", driver->config.frequencyDir, driver->config.frequencyFile);
+	snprintf(frequencyPath, PATH_MAX * 2 + 2, "%s/%s", driver->config.frequencyDir, driver->config.frequencyFile);
 	doubleToFile(frequencyPath, driver->lastFrequency);
     }
 
@@ -2076,9 +2076,9 @@ putInfoLine(ClockDriver* driver, char* buf, int len) {
     snprint_CckTimestamp(tmpBuf, sizeof(tmpBuf), &driver->refOffset);
 
     if((driver->state == CS_STEP) && driver->config.stepTimeout) {
-	snprintf(tmpBuf2, sizeof(tmpBuf2), "%s %-4d", getClockStateShortName(driver->state), driver->config.stepTimeout - driver->age.seconds);
+	snprintf(tmpBuf2, sizeof(tmpBuf2), "%s %-4ld", getClockStateShortName(driver->state), driver->config.stepTimeout - driver->age.seconds);
     } else if((driver->state == CS_HWFAULT) && driver->config.faultTimeout) {
-	snprintf(tmpBuf2, sizeof(tmpBuf2), "%s %-4d", getClockStateShortName(driver->state), driver->config.faultTimeout - driver->age.seconds);
+	snprintf(tmpBuf2, sizeof(tmpBuf2), "%s %-4ld", getClockStateShortName(driver->state), driver->config.faultTimeout - driver->age.seconds);
     } else {
 	strncpy(tmpBuf2, getClockStateName(driver->state), CCK_COMPONENT_NAME_MAX);
     }

@@ -171,11 +171,11 @@ typedef struct {
 
 	Boolean autoLockFile; /* mode and interface specific lock files are used
 				    * when set to TRUE */
-	char lockDirectory[PATH_MAX+1]; /* Directory to store lock files
+	char lockDirectory[PATH_MAX + 1]; /* Directory to store lock files
 				       * When automatic lock files used */
-	char lockFile[PATH_MAX+1]; /* lock file location */
-	char driftFile[PATH_MAX+1]; /* drift file location */
-	char leapFile[PATH_MAX+1]; /* leap seconds file location */
+	char lockFile[PATH_MAX * 2 + 1]; /* lock file location */
+	char driftFile[PATH_MAX * 2 + 1]; /* drift file location */
+	char leapFile[PATH_MAX * 2 + 1]; /* leap seconds file location */
 	char frequencyDir[PATH_MAX + 1]; /* frequency file directory */
 	char logFilter[101];		/* simple strstr() check */
 	Boolean deduplicateLog;		/* do not print the same log message twice */
